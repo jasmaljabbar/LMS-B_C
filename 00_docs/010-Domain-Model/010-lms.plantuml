@@ -1,0 +1,202 @@
+@startuml
+
+class Teacher {
+  - id: int
+  - name: String
+}
+
+class Student {
+  - id: int
+  - name: String
+}
+
+class Grade {
+  - id: int
+  - name: String
+}
+
+class Section {
+  - id: int
+  - name: String
+}
+
+class Subject {
+  - id: int
+  - name: String
+}
+
+class Lesson {
+  - id: int
+  - name: String
+}
+
+class PDF {
+  - id: int
+  - name: String
+}
+
+class Video {
+  - id: int
+  - name: String
+}
+
+class Assessment {
+  - id: int
+  - name: String
+}
+
+class AssessmentSection {
+  - id: int
+  - name: String
+}
+
+class Question {
+  - id: int
+  - content: String
+  - correctAnswer: String
+  - answerExplanation: String
+  - choices: List<String>
+  - questionType: String
+}
+
+class Image {
+  - id: int
+  - name: String
+  - pdfPageNumber: int
+}
+
+class URL {
+  - id: int
+  - url: String
+  - urlType: String
+}
+
+class StudentYear {
+    - studentId : int
+    - year : int
+    - sectionId : int
+}
+
+class StudentAssessment {
+    - studentId : int
+    - assessmentId : int
+    - score : int
+    - lessonId: int
+}
+class LessonAssessment{
+ - lessonId: int
+ - assessmentId:int
+}
+
+class Parent {
+ - id: int
+ - name: String
+}
+
+class Address {
+    - id: int
+    - street1: String
+    - street2: String
+    - city: String
+    - state: String
+    - zipCode: String
+    - country: String
+    - addressType: String
+}
+
+class PhoneNumber {
+    - id: int
+    - number: String
+    - type: String
+    - countryCode: String
+}
+
+class User {
+    - id: int
+    - username: String
+    - passwordHash: String
+    - userType: String
+    - isActive: boolean
+    - mfaEnabled: boolean
+    - mfaSecretKey: String
+    - emailIds: List<String>
+    - photo: String
+}
+
+class PasswordResetToken {
+    - id: int
+    - userId: int
+    - token: String
+    - expiryDate: Date
+}
+
+class UserLoginHistory {
+    - id: int
+    - userId: int
+    - loginTime: Date
+    - ipAddress: String
+    - device: String
+    - success: boolean
+}
+
+class SSOIdentity {
+    - id: int
+    - userId: int
+    - provider: String  ' e.g., "google", "microsoft"
+    - providerUserId: String ' ID from the provider
+    - accessToken: String  ' Optional, for API access
+    - refreshToken: String ' Optional, for refreshing access
+}
+
+class Administrator {
+}
+
+Grade "1" -- "*" Section
+Grade "1" -- "*" Subject
+Subject "1" -- "*" Lesson
+Lesson "1" -- "*" PDF
+Lesson "1" -- "*" Video
+Lesson "1" -- "*" Image
+PDF "1" -- "*" URL
+Video "1" -- "*" URL
+Image "1" -- "*" URL
+Question "0..1" -- "1" Image
+Assessment "1" -- "*" AssessmentSection
+AssessmentSection "1" -- "*" Question
+Teacher "1" -- "*" Subject
+Teacher "1" -- "*" Section
+
+Student "1" -- "*" StudentYear : enrolled in >
+Section "1" -- "*" StudentYear : has >
+
+Student "1" -- "*" StudentAssessment : takes >
+Assessment "1" -- "*" StudentAssessment
+Lesson "1" -- "*" LessonAssessment
+Assessment "1" -- "*" LessonAssessment
+Lesson "1" -- "*" StudentAssessment
+Parent "1" -- "*" Student
+
+Teacher "1" -- "*" Address
+Student "1" -- "*" Address
+Parent "1" -- "*" Address
+Administrator "1" -- "*" Address
+
+Teacher "1" -- "*" PhoneNumber
+Student "1" -- "*" PhoneNumber
+Parent "1" -- "*" PhoneNumber
+Administrator "1" -- "*" PhoneNumber
+
+User <|-- Teacher
+User <|-- Student
+User <|-- Parent
+User <|-- Administrator
+
+User "1" -- "0..1" PasswordResetToken : requests >
+User "1" -- "*" UserLoginHistory
+User "1" -- "*" SSOIdentity
+
+PDF "1" -- "*" Image : contains >
+
+User <|-- Administrator
+
+@enduml
