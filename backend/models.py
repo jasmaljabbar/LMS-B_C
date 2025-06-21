@@ -1,8 +1,10 @@
 # backend/models.py
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Float, DateTime, UniqueConstraint, Text, Time, Table, CheckConstraint, Enum as DBEnum, JSON as DB_JSON # Enum added if using DB enum, JSON added
 from sqlalchemy.orm import relationship, backref # Import backref if needed
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
+
 
 from .database import Base
 # Need the enum for the model if using DB Enum, or just rely on string + validation
@@ -116,6 +118,8 @@ class User(Base):
     created_assignment_formats = relationship("AssignmentFormat", back_populates="creator") # Corrected back_populates
     # Relationship from User to AssignmentDistribution (optional)
     # created_assignment_distributions = relationship("AssignmentDistribution", back_populates="assigned_by_user")
+    homeworks = relationship("Homework", back_populates="parent", cascade="all, delete-orphan")
+
 
 
 
@@ -160,6 +164,8 @@ class Student(Base):
         secondary='assignment_distribution_students', # Use association table name
         back_populates="specific_students"
     )
+    homeworks = relationship("Homework", back_populates="student", cascade="all, delete-orphan")
+
     # --- END ADDED RELATIONSHIP ---
 
 
@@ -370,6 +376,28 @@ class StudentAssessmentScore(Base):
     student = relationship("Student", back_populates="assessment_scores")
     assessment = relationship("Assessment", back_populates="scores")
     term = relationship("Term", back_populates="assessment_scores")
+
+
+class Homework(Base):
+    __tablename__ = "homeworks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)  # ✅ Add length
+    description = Column(String(500), nullable=True)  # ✅ Optional: add length
+    image_path = Column(String(255), nullable=False)
+
+    parent_id = Column(Integer, ForeignKey("users.id"))
+    student_id = Column(Integer, ForeignKey("students.id"))
+    grade_id = Column(Integer, ForeignKey("grades.id"))
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+    lesson_id = Column(Integer, ForeignKey("lessons.id"))
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    parent = relationship("User", back_populates="homeworks")
+    student = relationship("Student", back_populates="homeworks")
+    subject = relationship("Subject")
+    lesson = relationship("Lesson")
 
 # --- Timetable Table ---
 class Timetable(Base):

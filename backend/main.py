@@ -6,6 +6,7 @@ from backend.routes import auth, teachers, parents, students, administrators
 from backend.routes import urls, grades, sections, student_years
 from backend.routes import subject, lesson, pdfs, video, images
 from backend.routes import assessments
+from backend.routes import homeworks
 from backend.routes import assignment_samples
 from backend.routes import assignment_formats
 from backend.routes import assignment_distributions
@@ -70,6 +71,7 @@ app.include_router(pdfs.router)
 app.include_router(video.router)
 app.include_router(images.router)
 app.include_router(assessments.router)
+app.include_router(homeworks.router)
 app.include_router(assignment_samples.router)
 app.include_router(assignment_formats.router)
 app.include_router(assignment_distributions.router)

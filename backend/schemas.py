@@ -410,6 +410,25 @@ class StudentAssessmentScoreInfo(StudentAssessmentScoreBase): # Response schema
     attempt_timestamp: datetime # Automatically generated
 
 
+class HomeworkBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    student_id: int
+    grade_id: int
+    subject_id: int
+    lesson_id: int
+
+class HomeworkCreate(HomeworkBase):
+    pass
+
+class HomeworkOut(HomeworkBase):
+    id: int
+    image_path: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
 # --- Dashboard Schemas (Student) ---
 class WeeklyPerformanceData(BaseModel):
     model_config = orm_config
