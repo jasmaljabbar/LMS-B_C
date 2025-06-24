@@ -19,45 +19,74 @@ router = APIRouter(prefix="/subjects", tags=["Subjects"])
 def create_subject(
     subject: schemas.SubjectCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Creates a new subject."""
-    # --- AUTHORIZATION REMOVED ---
-    # if current_user.user_type != "Admin":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-    #     )
-    # --- END REMOVAL ---
-
-    # Check if grade exists
-    grade_exists = db.query(models.Grade.id).filter(models.Grade.id == subject.grade_id).first()
-    if not grade_exists:
-         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Grade with ID {subject.grade_id} not found.")
-
-
-    db_subject = models.Subject(**subject.dict())
+    """Creates a new subject for a specific student."""
+    print(current_user.user_type)
+    # Check if current user is parent or admin
+    if current_user.user_type not in ["Parent", "Admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Only parents or admins can create subjects"
+        )
+    
+    # If parent, verify they own the student
+    if current_user.user_type == "parent":
+        parent = db.query(models.Parent).filter(models.Parent.user_id == current_user.id).first()
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Parent profile not found"
+            )
+        
+        # Check if student belongs to parent
+        student_exists = db.query(models.Student).filter(
+            models.Student.id == subject.student_id,
+            models.Student.parents.any(id=parent.id)
+        ).first()
+        
+        if not student_exists:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to create subjects for this student"
+            )
+    
+    # Check if student exists
+    student = db.query(models.Student).filter(models.Student.id == subject.student_id).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Student with ID {subject.student_id} not found."
+        )
+    
+    # Check for duplicate subject name for this student
+    existing_subject = db.query(models.Subject).filter(
+        models.Subject.student_id == subject.student_id,
+        models.Subject.name == subject.name
+    ).first()
+    
+    if existing_subject:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Subject '{subject.name}' already exists for this student."
+        )
+    
+    db_subject = models.Subject(
+        name=subject.name,
+        student_id=subject.student_id
+    )
+    
     try:
         db.add(db_subject)
         db.commit()
         db.refresh(db_subject)
         return db_subject
-    except IntegrityError as e:
-        db.rollback()
-        # This check is now redundant due to the explicit check above, but kept for safety
-        if "FOREIGN KEY (`grade_id`)" in str(e.orig):
-             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid grade_id ({subject.grade_id}). Grade does not exist.",
-            )
-        else:
-             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, # Or 500 for unexpected DB error
-                detail="Failed to create subject due to database constraint.",
-            )
     except Exception as e:
         db.rollback()
-        # Log general errors
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while creating the subject: {str(e)}"
+        )
 
 
 
@@ -65,10 +94,9 @@ def create_subject(
 def read_subject(
     subject_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
     """Retrieves a subject by ID."""
-    # No specific role check was present here
     db_subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if db_subject is None:
         raise HTTPException(
@@ -76,65 +104,57 @@ def read_subject(
         )
     return db_subject
 
-
 @router.get("/", response_model=List[schemas.SubjectInfo])
 def read_subjects(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
     """Retrieves all subjects."""
-    # No specific role check was present here
     db_subjects = db.query(models.Subject).offset(skip).limit(limit).all()
     return db_subjects
 
-@router.get("/grade/{grade_id}", response_model=List[schemas.SubjectInfo])
-def read_subjects_by_grade(
-    grade_id: int,
+@router.get("/student/{student_id}", response_model=List[schemas.SubjectInfo])
+def read_subjects_by_student(
+    student_id: int,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Retrieves subjects by grade ID."""
-    # No specific role check was present here
-    # Check if grade exists first (optional but good practice)
-    grade_exists = db.query(models.Grade.id).filter(models.Grade.id == grade_id).first()
-    if not grade_exists:
-         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Grade with id {grade_id} not found.")
+    """Retrieves subjects by student ID."""
+    # Check if student exists first
+    student_exists = db.query(models.Student.id).filter(models.Student.id == student_id).first()
+    if not student_exists:
+         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Student with id {student_id} not found.")
 
     db_subjects = (
         db.query(models.Subject)
-        .filter(models.Subject.grade_id == grade_id)
+        .filter(models.Subject.student_id == student_id)
         .offset(skip)
         .limit(limit)
         .all()
     )
     return db_subjects
 
-
-# --- NEW ENDPOINT ---
 @router.get(
-    "/{subject_id}/grade-sections",
-    response_model=schemas.SubjectGradeSectionDetails,
-    summary="Get Grade and Sections for a Subject",
-    description="Retrieves the grade details and all associated section details for a given subject ID."
+    "/{subject_id}/student-details",
+    response_model=schemas.SubjectStudentDetails,
+    summary="Get Student Details for a Subject",
+    description="Retrieves the student details for a given subject ID."
 )
-def read_grade_and_sections_for_subject(
+def read_student_details_for_subject(
     subject_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
     """
-    Retrieves the Grade and all Sections associated with the Grade
-    linked to the specified Subject ID.
+    Retrieves the Student details associated with the specified Subject ID.
     """
-    # No specific role check needed beyond authentication for this read operation
-
-    # Fetch the subject and eagerly load its related grade
+    # Fetch the subject and eagerly load its related student
     db_subject = db.query(models.Subject).options(
-        joinedload(models.Subject.grade) # Eager load the grade
+        joinedload(models.Subject.student)  # Eager load the student
     ).filter(models.Subject.id == subject_id).first()
 
     if db_subject is None:
@@ -144,59 +164,59 @@ def read_grade_and_sections_for_subject(
             detail=f"Subject with ID {subject_id} not found"
         )
 
-    if db_subject.grade is None:
-        # This case should ideally not happen if grade_id is non-nullable FK,
-        # but good practice to check.
-        logger.error(f"Subject {subject_id} found, but has no associated Grade.")
+    if db_subject.student is None:
+        logger.error(f"Subject {subject_id} found, but has no associated Student.")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Grade associated with subject {subject_id} not found."
+            detail=f"Student associated with subject {subject_id} not found."
         )
 
-    # Fetch all sections belonging to the subject's grade
-    db_sections = db.query(models.Section).filter(
-        models.Section.grade_id == db_subject.grade_id
-    ).order_by(models.Section.name).all() # Order sections alphabetically
-
-    # Pydantic's `from_orm` (or `from_attributes=True` in v2) will automatically map
-    # db_subject.grade to schemas.GradeInfo and db_sections to List[schemas.SectionInfo]
-    # when creating the SubjectGradeSectionDetails response.
-    response_data = schemas.SubjectGradeSectionDetails(
-        grade=db_subject.grade, # Pass the loaded Grade object
-        sections=db_sections    # Pass the list of Section objects
+    return schemas.SubjectStudentDetails(
+        student=db_subject.student
     )
-
-    logger.info(f"Successfully retrieved grade and section details for Subject ID {subject_id}.")
-    return response_data
-# --- END NEW ENDPOINT ---
-
 
 @router.put("/{subject_id}", response_model=schemas.SubjectInfo)
 def update_subject(
     subject_id: int,
     subject: schemas.SubjectCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
     """Updates a subject by ID."""
-    # --- AUTHORIZATION REMOVED ---
-    # if current_user.user_type != "Admin":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-    #     )
-    # --- END REMOVAL ---
-
     db_subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if db_subject is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found"
         )
 
-    # Check if new grade_id exists
-    if subject.grade_id != db_subject.grade_id:
-        grade_exists = db.query(models.Grade.id).filter(models.Grade.id == subject.grade_id).first()
-        if not grade_exists:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Grade with ID {subject.grade_id} not found.")
+    # Check if new student_id exists
+    if subject.student_id != db_subject.student_id:
+        student_exists = db.query(models.Student.id).filter(models.Student.id == subject.student_id).first()
+        if not student_exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=f"Student with ID {subject.student_id} not found."
+            )
+
+        # If user is parent, verify they own the new student
+        if current_user.user_type == "Parent":
+            parent = db.query(models.Parent).filter(models.Parent.user_id == current_user.id).first()
+            if not parent:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Parent profile not found"
+                )
+            
+            student_belongs = db.query(models.Student).filter(
+                models.Student.id == subject.student_id,
+                models.Student.parents.any(id=parent.id)
+            ).first()
+            
+            if not student_belongs:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not authorized to move subject to this student"
+                )
 
     # Update the subject attributes
     update_data = subject.dict()
@@ -209,11 +229,10 @@ def update_subject(
         return db_subject
     except IntegrityError as e:
         db.rollback()
-        # This check is now redundant
-        if "FOREIGN KEY (`grade_id`)" in str(e.orig):
+        if "FOREIGN KEY (`student_id`)" in str(e.orig):
              raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid grade_id ({subject.grade_id}). Grade does not exist.",
+                detail=f"Invalid student_id ({subject.student_id}). Student does not exist.",
             )
         else:
              raise HTTPException(
@@ -222,7 +241,10 @@ def update_subject(
             )
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"An unexpected error occurred: {e}"
+        )
 
 
 @router.delete("/{subject_id}", status_code=status.HTTP_204_NO_CONTENT)

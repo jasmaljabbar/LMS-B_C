@@ -92,45 +92,30 @@ def _get_lesson_files_filtered(
 
     return files
 
-# --- Validate Subject and Term Compatibility ---
-def _validate_subject_term(subject_id: int, term_id: int, db: Session):
-    """Checks if the term belongs to the same grade as the subject."""
+# --- Validate Subject Existence ---
+def _validate_subject_exists(subject_id: int, db: Session):
+    """Checks if the subject exists."""
     subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
-    term = _get_term(term_id, db) # Use helper to check existence
-
     if not subject:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Subject with id {subject_id} not found.")
-
-    if subject.grade_id != term.grade_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Term (ID: {term_id}, Grade: {term.grade_id}) does not belong to the same grade as Subject (ID: {subject_id}, Grade: {subject.grade_id})."
-        )
 
 # --- Modified and Existing Endpoints ---
 
 @router.post("/", response_model=schemas.LessonInfo, status_code=status.HTTP_201_CREATED)
 def create_lesson(
-    lesson: schemas.LessonCreate, # Schema now includes term_id
+    lesson: schemas.LessonCreate,  # Schema should no longer include term_id
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Creates a new lesson, linking it to a subject and a term."""
-    # --- AUTHORIZATION REMOVED ---
-    # if current_user.user_type not in ["Admin", "Teacher"]:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-    #     )
-    # --- END REMOVAL ---
-
-    _validate_subject_term(lesson.subject_id, lesson.term_id, db)
+    """Creates a new lesson, linking it to a subject."""
+    _validate_subject_exists(lesson.subject_id, db)
 
     db_lesson = models.Lesson(**lesson.dict())
     try:
         db.add(db_lesson)
         db.commit()
         db.refresh(db_lesson)
-        logger.info(f"Created Lesson '{db_lesson.name}' (ID: {db_lesson.id}) for Subject {lesson.subject_id}, Term {lesson.term_id} by user {current_user.username}")
+        logger.info(f"Created Lesson '{db_lesson.name}' (ID: {db_lesson.id}) for Subject {lesson.subject_id} by user {current_user.username}")
         return db_lesson
     except IntegrityError as e:
         db.rollback()
@@ -138,144 +123,75 @@ def create_lesson(
         detail = "Failed to create lesson due to database constraint."
         if "FOREIGN KEY (`subject_id`)" in str(e.orig):
             detail = f"Invalid subject_id ({lesson.subject_id}). Subject does not exist."
-        elif "FOREIGN KEY (`term_id`)" in str(e.orig):
-            detail = f"Invalid term_id ({lesson.term_id}). Term does not exist."
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     except Exception as e:
         db.rollback()
         logger.error(f"Unexpected error creating lesson: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred.")
 
-
-@router.get("/{lesson_id}", response_model=schemas.LessonInfo) # Response schema includes term_id
+@router.get("/{lesson_id}", response_model=schemas.LessonInfo)
 def read_lesson(
     lesson_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Retrieves a lesson by ID, including its term_id."""
-    # No specific role check was present here
-    db_lesson = db.query(models.Lesson).options(joinedload(models.Lesson.term)).filter(models.Lesson.id == lesson_id).first()
+    """Retrieves a lesson by ID."""
+    db_lesson = db.query(models.Lesson).filter(models.Lesson.id == lesson_id).first()
     if db_lesson is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found"
         )
     return db_lesson
 
-
-@router.get("/", response_model=List[schemas.LessonInfo]) # Response schema includes term_id
+@router.get("/", response_model=List[schemas.LessonInfo])
 def read_lessons(
-    subject_id: Optional[int] = None, # Optional filter by subject
-    term_id: Optional[int] = None,   # Optional filter by term
+    subject_id: Optional[int] = None,  # Only subject filter remains
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Retrieves lessons, optionally filtered by subject_id and/or term_id."""
-    # No specific role check was present here
+    """Retrieves lessons, optionally filtered by subject_id."""
     query = db.query(models.Lesson)
     if subject_id:
         query = query.filter(models.Lesson.subject_id == subject_id)
-    if term_id:
-        query = query.filter(models.Lesson.term_id == term_id)
 
     db_lessons = query.offset(skip).limit(limit).all()
     return db_lessons
 
-
 @router.get("/subject/{subject_id}", response_model=List[schemas.LessonInfo])
 def read_lessons_by_subject(
     subject_id: int,
-    term_id: Optional[int] = None, # Allow filtering by term here too
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Retrieves lessons by subject ID, optionally filtered by term ID."""
-    # No specific role check was present here
+    """Retrieves lessons by subject ID."""
     subject_exists = db.query(models.Subject.id).filter(models.Subject.id == subject_id).first()
     if not subject_exists:
          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Subject with id {subject_id} not found.")
 
-    query = db.query(models.Lesson).filter(models.Lesson.subject_id == subject_id)
-    if term_id:
-        query = query.filter(models.Lesson.term_id == term_id)
-
-    db_lessons = query.all()
+    db_lessons = db.query(models.Lesson).filter(models.Lesson.subject_id == subject_id).all()
     return db_lessons
 
-@router.get("/term/{term_id}", response_model=List[schemas.LessonInfo])
-def read_lessons_by_term(
-    term_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
-):
-    """Retrieves all lessons for a specific term ID."""
-    # No specific role check was present here
-    _get_term(term_id, db) # Validate term exists
+# Remove the term-related endpoints completely
+# @router.get("/term/{term_id}", ...) - DELETE THIS
+# @router.get("/by-term-subject/", ...) - DELETE THIS
 
-    db_lessons = (
-        db.query(models.Lesson)
-        .filter(models.Lesson.term_id == term_id)
-        .all()
-    )
-    return db_lessons
-
-
-# --- NEW ENDPOINT ---
-@router.get("/by-term-subject/", response_model=List[schemas.LessonBasicInfo])
-def read_lessons_by_term_and_subject(
-    term_id: int = Query(..., description="ID of the term to filter by"),
-    subject_id: int = Query(..., description="ID of the subject to filter by"),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
-):
-    """
-    Retrieves lessons filtered by a specific term ID AND subject ID.
-    Returns only the lesson ID and name.
-    """
-    # Optional: Validate that the term and subject actually exist first
-    _get_term(term_id, db)
-    _get_subject(subject_id, db)
-    # Optional: Could add validation here to ensure the term and subject are compatible (belong to the same grade) if needed.
-
-    # Query lessons matching both term_id and subject_id
-    db_lessons = db.query(models.Lesson).filter(
-        models.Lesson.term_id == term_id,
-        models.Lesson.subject_id == subject_id
-    ).order_by(
-        models.Lesson.name # Optional: order by name
-    ).all()
-
-    # The response_model `List[schemas.LessonBasicInfo]` combined with
-    # `from_attributes=True` in the schema's config will automatically
-    # select only the 'id' and 'name' fields from the `db_lessons` objects.
-    return db_lessons
-# --- END NEW ENDPOINT ---
-
-
-@router.put("/{lesson_id}", response_model=schemas.LessonInfo) # Response schema includes term_id
+@router.put("/{lesson_id}", response_model=schemas.LessonInfo)
 def update_lesson(
     lesson_id: int,
-    lesson: schemas.LessonCreate, # Schema includes term_id
+    lesson: schemas.LessonCreate,  # Schema should no longer include term_id
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
+    current_user: models.User = Depends(get_current_user),
 ):
     """Updates a lesson by ID."""
-    # --- AUTHORIZATION REMOVED ---
-    # if current_user.user_type not in ["Admin", "Teacher"]:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
-    #     )
-    # --- END REMOVAL ---
-
     db_lesson = db.query(models.Lesson).filter(models.Lesson.id == lesson_id).first()
     if db_lesson is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found"
         )
 
-    _validate_subject_term(lesson.subject_id, lesson.term_id, db)
+    _validate_subject_exists(lesson.subject_id, db)
 
     # Update fields
     update_data = lesson.dict()
@@ -293,8 +209,6 @@ def update_lesson(
         detail = "Failed to update lesson due to database constraint."
         if "FOREIGN KEY (`subject_id`)" in str(e.orig):
             detail = f"Invalid subject_id ({lesson.subject_id}). Subject does not exist."
-        elif "FOREIGN KEY (`term_id`)" in str(e.orig):
-            detail = f"Invalid term_id ({lesson.term_id}). Term does not exist."
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     except Exception as e:
         db.rollback()
