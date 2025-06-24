@@ -1,8 +1,10 @@
 # backend/models.py
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Float, DateTime, UniqueConstraint, Text, Time, Table, CheckConstraint, Enum as DBEnum, JSON as DB_JSON # Enum added if using DB enum, JSON added
 from sqlalchemy.orm import relationship, backref # Import backref if needed
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
+
 
 from .database import Base
 # Need the enum for the model if using DB Enum, or just rely on string + validation
@@ -66,7 +68,7 @@ class Term(Base):
     end_date = Column(Date, nullable=True)
 
     grade = relationship("Grade", back_populates="terms")
-    lessons = relationship("Lesson", back_populates="term")
+    # lessons = relationship("Lesson", back_populates="term")
     assessment_scores = relationship("StudentAssessmentScore", back_populates="term")
 
     __table_args__ = (UniqueConstraint('name', 'year', 'grade_id', name='uq_term_name_year_grade'),)
@@ -116,6 +118,8 @@ class User(Base):
     created_assignment_formats = relationship("AssignmentFormat", back_populates="creator") # Corrected back_populates
     # Relationship from User to AssignmentDistribution (optional)
     # created_assignment_distributions = relationship("AssignmentDistribution", back_populates="assigned_by_user")
+    homeworks = relationship("Homework", back_populates="parent", cascade="all, delete-orphan")
+
 
 
 
@@ -147,6 +151,9 @@ class Student(Base):
     name = Column(String(100))
     user_id = Column(Integer, ForeignKey("users.id", ondelete='CASCADE'), unique=True)
 
+    # Add subjects relationship
+    subjects = relationship("Subject", back_populates="student", cascade="all, delete-orphan")
+
     user = relationship("User", back_populates="student")
     assessment_scores = relationship("StudentAssessmentScore", back_populates="student", cascade="all, delete-orphan")
     parents = relationship(
@@ -160,6 +167,8 @@ class Student(Base):
         secondary='assignment_distribution_students', # Use association table name
         back_populates="specific_students"
     )
+    homeworks = relationship("Homework", back_populates="student", cascade="all, delete-orphan")
+
     # --- END ADDED RELATIONSHIP ---
 
 
@@ -202,7 +211,6 @@ class Grade(Base):
     name = Column(String(100))
 
     sections = relationship("Section", back_populates="grade", cascade="all, delete-orphan")
-    subjects = relationship("Subject", back_populates="grade", cascade="all, delete-orphan")
     terms = relationship("Term", back_populates="grade", cascade="all, delete-orphan")
     teachers = relationship("Teacher", secondary=teacher_grades, back_populates="grades")
 
@@ -235,20 +243,17 @@ class StudentYear(Base):
 
 class Subject(Base):
     __tablename__ = "subjects"
-
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    grade_id = Column(Integer, ForeignKey("grades.id", ondelete='CASCADE'))
-
-    grade = relationship("Grade", back_populates="subjects")
+    student_id = Column(Integer, ForeignKey("students.id", ondelete='CASCADE'), nullable=False)
+    
+    student = relationship("Student", back_populates="subjects")
     lessons = relationship("Lesson", back_populates="subject", cascade="all, delete-orphan")
     assessments = relationship("Assessment", back_populates="subject", cascade="all, delete-orphan")
-    timetable_slots = relationship("Timetable", back_populates="subject")
+    # Remove this line:
+    # timetable_slots = relationship("Timetable", back_populates="subject")
     assignment_samples = relationship("AssignmentSample", back_populates="subject", cascade="all, delete-orphan")
-    # --- ADDED RELATIONSHIP ---
-    assignment_formats = relationship("AssignmentFormat", back_populates="subject", cascade="all, delete-orphan") # Added back_populates
-    # --- END ADDED RELATIONSHIP ---
-
+    assignment_formats = relationship("AssignmentFormat", back_populates="subject", cascade="all, delete-orphan")
 
 # --- NEW: Association Table for Assessment-Lesson (Many-to-Many) ---
 assessment_lesson_association = Table(
@@ -264,10 +269,10 @@ class Lesson(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete='CASCADE'), nullable=False)
-    term_id = Column(Integer, ForeignKey("terms.id", ondelete='CASCADE'), nullable=False)
+    # term_id = Column(Integer, ForeignKey("terms.id", ondelete='CASCADE'), nullable=False)
 
     subject = relationship("Subject", back_populates="lessons")
-    term = relationship("Term", back_populates="lessons")
+    # term = relationship("Term", back_populates="lessons")
     pdfs = relationship("PDF", back_populates="lesson", cascade="all, delete-orphan")
     videos = relationship("Video", back_populates="lesson", cascade="all, delete-orphan")
     # --- MODIFIED: Use association table for assessments ---
@@ -371,6 +376,28 @@ class StudentAssessmentScore(Base):
     assessment = relationship("Assessment", back_populates="scores")
     term = relationship("Term", back_populates="assessment_scores")
 
+
+class Homework(Base):
+    __tablename__ = "homeworks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)  # ✅ Add length
+    description = Column(String(500), nullable=True)  # ✅ Optional: add length
+    image_path = Column(String(255), nullable=False)
+
+    parent_id = Column(Integer, ForeignKey("users.id"))
+    student_id = Column(Integer, ForeignKey("students.id"))
+    grade_id = Column(Integer, ForeignKey("grades.id"), nullable=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+    lesson_id = Column(Integer, ForeignKey("lessons.id"))
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    parent = relationship("User", back_populates="homeworks")
+    student = relationship("Student", back_populates="homeworks")
+    subject = relationship("Subject")
+    lesson = relationship("Lesson")
+
 # --- Timetable Table ---
 class Timetable(Base):
     __tablename__ = "timetables"
@@ -381,11 +408,10 @@ class Timetable(Base):
     section_id = Column(Integer, ForeignKey("sections.id", ondelete='CASCADE'), nullable=False, index=True)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete='CASCADE'), nullable=False, index=True)
     teacher_id = Column(Integer, ForeignKey("teachers.id", ondelete='SET NULL'), nullable=True)
+    
     section = relationship("Section", back_populates="timetable_slots")
-    subject = relationship("Subject", back_populates="timetable_slots")
+    subject = relationship("Subject")
     teacher = relationship("Teacher", back_populates="timetable_slots")
-    __table_args__ = (UniqueConstraint('day_of_week', 'start_time', 'section_id', name='uq_timetable_day_start_section'),
-                      UniqueConstraint('day_of_week', 'end_time', 'section_id', name='uq_timetable_day_end_section'),)
 
 # --- AssignmentSample/URL Association Table ---
 assignment_sample_url_association = Table(

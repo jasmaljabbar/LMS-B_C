@@ -71,7 +71,7 @@ async def upload_to_mysql(file: UploadFile, user_id: int):
         db.refresh(db_file)
         
         # Return some identifier (could be the ID or a success message)
-        return {"message": "File uploaded successfully", "file_id": db_file.id}
+        return str(db_file.id)
         
     except Exception as e:
         db.rollback()

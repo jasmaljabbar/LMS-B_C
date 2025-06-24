@@ -24,3 +24,5 @@ def get_db():
     finally:
         db.close()
 
+# In your database configuration:
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"

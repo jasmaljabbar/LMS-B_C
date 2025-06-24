@@ -1,5 +1,5 @@
 #!/bin/bash -x
-DB_IP=35.202.207.59
+DB_IP=localhost
 docker run -d \
   --restart unless-stopped \
   -p 8080:8080 \

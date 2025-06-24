@@ -87,6 +87,17 @@ class StudentInfo(BaseModel):
     name: str
     user_id: int
     photo: Union[str, None] = None
+    model_config = {
+        "from_attributes": True,
+    }
+
+class SubjectStudentDetails(BaseModel):
+    """Schema to return student details for a subject."""
+    student: StudentInfo
+    
+    model_config = {
+        "from_attributes": True
+    }
 
 class StudentDetails(BaseModel):
     model_config = orm_config
@@ -163,13 +174,13 @@ class StudentYearInfo(StudentYearCreate):
 
 class SubjectCreate(BaseModel):
     name: str
-    grade_id: int
+    student_id: int
 
 class SubjectInfo(BaseModel):
     model_config = orm_config
     id: int
     name: str
-    grade_id: int
+    student_id: int
 
 class TermBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -216,14 +227,14 @@ class LessonBasicInfo(BaseModel):
 class LessonCreate(BaseModel):
     name: str
     subject_id: int
-    term_id: int
+
 
 class LessonInfo(BaseModel):
     model_config = orm_config
     id: int
     name: str
     subject_id: int
-    term_id: int
+
     # Example if Lesson needs to show linked Assessments
     # assessments: List['AssessmentBasicInfo'] = [] # Use forward reference
 
@@ -409,6 +420,26 @@ class StudentAssessmentScoreInfo(StudentAssessmentScoreBase): # Response schema
     student_id: int # Include student_id in the response
     attempt_timestamp: datetime # Automatically generated
 
+
+class HomeworkBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    student_id: int
+    grade_id: Optional[int] = None  # Make grade_id optional
+    subject_id: int
+    lesson_id: int
+    parent_id: int  # Add parent_id to your schema
+
+class HomeworkCreate(HomeworkBase):
+    pass
+
+class HomeworkOut(HomeworkBase):
+    id: int
+    image_path: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True  # For Pydantic v2 (orm_mode = True in v1)
 
 # --- Dashboard Schemas (Student) ---
 class WeeklyPerformanceData(BaseModel):
