@@ -121,3 +121,36 @@ def submit_assessment_score(
         logger.error(f"Error submitting assessment score for student {student_id}, assessment {score_data.assessment_id}: {e}", exc_info=True)
         # Consider more specific error handling (e.g., IntegrityError) if needed
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to submit assessment score.")
+
+
+def get_or_create_score_record(
+    db: Session,
+    student_id: int,
+    homework_id: int,
+    score_data: dict
+) -> models.StudentHomeworkScore:
+    """Handles automatic score recording"""
+    score_record = db.query(models.StudentHomeworkScore).filter(
+        models.StudentHomeworkScore.student_id == student_id,
+        models.StudentHomeworkScore.homework_id == homework_id
+    ).first()
+
+    if score_record:
+        # Update existing record
+        score_record.score_achieved = score_data['score_achieved']
+        score_record.max_score = score_data['max_score']
+        score_record.comments = score_data['comments']
+        score_record.graded_at = datetime.utcnow()
+    else:
+        # Create new auto-score record
+        score_record = models.StudentHomeworkScore(
+            student_id=student_id,
+            homework_id=homework_id,
+            score_achieved=score_data['score_achieved'],
+            max_score=score_data['max_score'],
+            comments=score_data['comments'],
+            graded_by=None  # Auto-scored by system
+        )
+        db.add(score_record)
+    
+    return score_record

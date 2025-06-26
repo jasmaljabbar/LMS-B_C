@@ -433,13 +433,49 @@ class HomeworkBase(BaseModel):
 class HomeworkCreate(HomeworkBase):
     pass
 
-class HomeworkOut(HomeworkBase):
+# In your schemas.py
+class HomeworkOut(BaseModel):
     id: int
+    title: str
+    description: Optional[str]
     image_path: str
+    completed: bool  # Add this
+    completed_at: Optional[datetime]  # Add this
+    parent_id: int
+    student_id: int
+    grade_id: Optional[int]
+    subject_id: int
+    lesson_id: int
     created_at: datetime
-
+    
     class Config:
-        from_attributes = True  # For Pydantic v2 (orm_mode = True in v1)
+        orm_mode = True
+
+class HomeworkScoreCreate(BaseModel):
+    # No longer needed since scoring is automatic
+    pass
+
+
+class NotificationOut(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    message: str
+    is_read: bool
+    related_entity_type: str
+    related_entity_id: int
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+# class HomeworkOut(HomeworkBase):
+#     id: int
+#     image_path: str
+#     created_at: datetime
+
+#     class Config:
+#         from_attributes = True  # For Pydantic v2 (orm_mode = True in v1)
 
 # --- Dashboard Schemas (Student) ---
 class WeeklyPerformanceData(BaseModel):

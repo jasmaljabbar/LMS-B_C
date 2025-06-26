@@ -3,4 +3,7 @@ __pycache__/
 app.log
 context.txt
 terraform/.terraform
+.idea
+**/.terraform/
+.env
 
