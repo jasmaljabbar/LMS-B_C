@@ -1,6 +1,6 @@
 # backend/routes/students.py
 import os
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File, Form
 from sqlalchemy.orm import Session, joinedload, selectinload # Added selectinload here
 from typing import List, Optional
 
@@ -70,6 +70,9 @@ router = APIRouter(prefix="/students", tags=["students"])
 #             detail=f"Error uploading photo to GCS: {str(e)}",
 #         )
 
+STUDENT_PHOTOS_DIR = "uploads/student_photos"
+os.makedirs(STUDENT_PHOTOS_DIR, exist_ok=True)
+
 
 # Allowed file extensions and their corresponding content types
 ALLOWED_EXTENSIONS = {
@@ -79,6 +82,41 @@ ALLOWED_EXTENSIONS = {
     "gif": "image/gif",
     "webp": "image/webp"
 }
+
+async def save_student_photo(file: UploadFile, user_id: int) -> Optional[str]:
+    """Saves student photo to local directory and returns relative path"""
+    # File validation
+    file_ext = file.filename.split(".")[-1].lower() if "." in file.filename else None
+    if not file_ext or file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(ALLOWED_EXTENSIONS.keys())}"
+        )
+    
+    if file.content_type != ALLOWED_EXTENSIONS[file_ext]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File content type doesn't match its extension"
+        )
+
+    try:
+        # Generate unique filename
+        filename = f"student_{user_id}.{file_ext}"
+        file_path = os.path.join(STUDENT_PHOTOS_DIR, filename)
+        
+        # Save file to disk
+        contents = await file.read()
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+        
+        return f"/{STUDENT_PHOTOS_DIR}/{filename}"  # Return relative path
+        
+    except Exception as e:
+        logger.error(f"Error saving student photo: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error saving student photo"
+        )
 
 async def upload_user_file(file: UploadFile, user_id: int) -> Optional[str]:
     """
@@ -128,6 +166,22 @@ async def upload_user_file(file: UploadFile, user_id: int) -> Optional[str]:
     finally:
         db.close()
 
+@router.get("/files/{file_id}")
+async def get_file(
+    file_id: int,
+    db: Session = Depends(get_db)
+):
+    """Retrieve a file from the database by its ID"""
+    db_file = db.query(models.UserFile).filter(models.UserFile.id == file_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return Response(
+        content=db_file.data,
+        media_type=db_file.content_type,
+        headers={"Content-Disposition": f"inline; filename={db_file.filename}"}
+    )
+
 
 @router.post(
     "/", response_model=schemas.StudentDetails, status_code=status.HTTP_201_CREATED
@@ -140,12 +194,10 @@ async def create_student(
         year: int = Form(...),
         sectionId: int = Form(...),
         db: Session = Depends(get_db),
-        current_user: models.User = Depends(get_current_user), # Authentication check
+        current_user: models.User = Depends(get_current_user),
         photo: UploadFile = File(None),
 ):
-    """Creates a new student, associated user, and student year record."""
-    # _verify_admin(current_user) # <-- CALL REMOVED
-
+    """Creates a new student with local photo storage"""
     # --- Input Validation and Conflict Checks ---
     if not name or not username or not email or not password:
          raise HTTPException(status_code=400, detail="Missing required fields.")
@@ -164,90 +216,103 @@ async def create_student(
 
     # --- Database Operations ---
     hashed_password = utils.hash_password(password)
-    db_user: Optional[models.User] = None
-    db_student: Optional[models.Student] = None
-    gcs_photo_url: Optional[str] = None
+    db_user = None
+    db_student = None
+    photo_path = None
 
     try:
         # Create the user
         db_user = models.User(
-            username=username, password_hash=hashed_password, user_type="Student", email=email, is_active=True # Default to active
+            username=username,
+            password_hash=hashed_password,
+            user_type="Student",
+            email=email,
+            is_active=True
         )
         db.add(db_user)
-        db.flush() # Get user ID
+        db.flush()  # Get user ID
 
-        # Upload photo *before* creating student profile (user ID is needed)
+        # Handle photo upload to local storage
         if photo:
-            gcs_photo_url = await upload_user_file(photo, db_user.id)
-            db_user.photo = gcs_photo_url # Add URL to user object
+            try:
+                # Generate unique filename
+                file_ext = photo.filename.split(".")[-1].lower() if "." in photo.filename else ""
+                if file_ext not in ALLOWED_EXTENSIONS:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS.keys())}"
+                    )
+
+                # Create upload directory if not exists
+                os.makedirs(STUDENT_PHOTOS_DIR, exist_ok=True)
+                
+                # Save file
+                filename = f"student_{db_user.id}.{file_ext}"
+                file_path = os.path.join(STUDENT_PHOTOS_DIR, filename)
+                
+                contents = await photo.read()
+                with open(file_path, "wb") as buffer:
+                    buffer.write(contents)
+                
+                photo_path = f"/uploads/student_photos/{filename}"  # URL path
+                db_user.photo = photo_path
+            except Exception as e:
+                logger.error(f"Failed to save student photo: {str(e)}")
+                # Continue without photo rather than failing entire creation
 
         # Create the student profile
         db_student = models.Student(name=name, user_id=db_user.id)
         db.add(db_student)
-        db.flush() # Get student ID
+        db.flush()
 
         # Create StudentYear entry
-        db_student_year = models.StudentYear(studentId=db_student.id, year=year, sectionId=sectionId)
+        db_student_year = models.StudentYear(
+            studentId=db_student.id,
+            year=year,
+            sectionId=sectionId
+        )
         db.add(db_student_year)
 
-        # Commit the entire transaction
         db.commit()
-        logger.info(f"Successfully created student '{name}' (ID: {db_student.id}) and user '{username}' (ID: {db_user.id}).")
 
-        # --- Audit Logging (after successful commit) ---
-        log_activity(
-            db=db,
-            user_id=current_user.id, # Logged in user performed the action
-            action='STUDENT_CREATED',
-            details=f"User '{current_user.username}' created student '{name}' (User ID: {db_user.id}, Student ID: {db_student.id}). Assigned to section {sectionId} for year {year}.",
-            target_entity='Student',
-            target_entity_id=db_student.id
-        )
+        logger.info(f"Created student {name} (ID: {db_student.id})")
 
-        # Refresh objects to get final state for the response
-        db.refresh(db_user)
-        db.refresh(db_student)
-        db.refresh(db_student_year)
+        # Prepare response
+        db_section = db.query(models.Section).options(
+            joinedload(models.Section.grade)
+        ).filter(models.Section.id == sectionId).first()
 
-        # --- Prepare and Return Response ---
-        # Re-fetch section with grade info for the response schema
-        db_section = db.query(models.Section).options(joinedload(models.Section.grade)).filter(models.Section.id == sectionId).first()
-        if not db_section: # Should not happen if initial check passed and no commit error
-             logger.error(f"Critical error: Section {sectionId} disappeared after student creation transaction for student {db_student.id}.")
-             raise HTTPException(status_code=500, detail="Internal server error: Could not retrieve section details.")
-
-        user_details = schemas.UserDetails.from_orm(db_user)
-        section_info = schemas.SectionInfo.from_orm(db_section)
+        if not db_section:
+            logger.error(f"Section {sectionId} missing after creation")
+            section_info = schemas.SectionInfo(id=-1, name="N/A", grade_id=-1)
+        else:
+            section_info = schemas.SectionInfo.from_orm(db_section)
 
         return schemas.StudentDetails(
-            id=db_student.id, name=db_student.name, user=user_details, section=section_info, year=db_student_year.year
+            id=db_student.id,
+            name=db_student.name,
+            user=schemas.UserDetails.from_orm(db_user),
+            section=section_info,
+            year=year
         )
 
-    except HTTPException as http_exc:
-        db.rollback() # Rollback on client errors too
-        raise http_exc # Re-raise HTTP exceptions
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
-        db.rollback() # Rollback on any other error
-        logger.error(f"Error creating student '{username}': {e}", exc_info=True)
-        # Basic GCS cleanup attempt if photo was uploaded but DB failed
-        if gcs_photo_url and db_user and db_user.id and bucket:
+        db.rollback()
+        logger.error(f"Error creating student: {str(e)}", exc_info=True)
+        
+        # Clean up uploaded photo if creation failed
+        if photo_path and os.path.exists(photo_path.replace("/uploads/", "uploads/")):
             try:
-                # Need to reconstruct blob name used during upload
-                parts = gcs_photo_url.split(f"users/{db_user.id}.")
-                if len(parts) > 1:
-                    ext_with_query = parts[-1] # May include query params if public_url was used incorrectly
-                    ext = ext_with_query.split('?')[0] # Remove query params if present
-                    blob_name = f"users/{db_user.id}.{ext}"
-                    blob = bucket.blob(blob_name)
-                    if blob.exists():
-                        blob.delete()
-                        logger.warning(f"Attempted cleanup of potentially orphaned GCS file: {blob_name}")
-            except Exception as cleanup_e:
-                logger.error(f"Failed during GCS cleanup attempt for user {db_user.id}: {cleanup_e}")
+                os.remove(photo_path.replace("/uploads/", "uploads/"))
+            except Exception as cleanup_error:
+                logger.error(f"Failed to cleanup photo: {str(cleanup_error)}")
 
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred during student creation."
+            status_code=500,
+            detail="An error occurred during student creation"
         )
 
 
