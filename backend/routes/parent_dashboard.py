@@ -135,55 +135,68 @@ def get_child_subject_performance(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Gets the average score per subject for the specified child."""
+    """Gets the average homework score per subject for the specified child."""
     parent_id = _get_parent_id_from_user(current_user, db)
-    _verify_parent_access_to_child(parent_id, student_id, db) # Authorize access
+    _verify_parent_access_to_child(parent_id, student_id, db)  # Authorize access
 
     # Get child's grade ID
-    grade_section_info = _get_child_grade_section(student_id, db)
-    if not grade_section_info:
-        logger.warning(f"Cannot fetch subject performance for student {student_id} as grade is unknown.")
-        return []
-    grade_id = grade_section_info[0]
+    # grade_section_info = _get_child_grade_section(student_id, db)
+    # if not grade_section_info:
+    #     logger.warning(f"Cannot fetch subject performance for student {student_id} as grade is unknown.")
+    #     return []
+    # grade_id = grade_section_info[0]
 
     # Get subjects for that grade
     subjects_query = db.query(models.Subject.id, models.Subject.name).filter(
-        models.Subject.grade_id == grade_id
+        models.Subject.student_id == student_id
     ).order_by(models.Subject.name)
     subjects = subjects_query.all()
 
-    if not subjects:
-        logger.warning(f"No subjects found for grade {grade_id}.")
-        return []
+
+    # if not subjects:
+    #     logger.warning(f"No subjects found for grade {grade_id}.")
+    #     return []
 
     subject_map = {s.id: s.name for s in subjects}
     subject_ids = list(subject_map.keys())
 
-    # Fetch average scores for this student per subject
+    # Fetch average homework scores for this student per subject
     avg_scores_query = db.query(
-        models.Assessment.subject_id,
+        models.Homework.subject_id,
         func.avg(
-            case((models.StudentAssessmentScore.max_score > 0, (models.StudentAssessmentScore.score_achieved / models.StudentAssessmentScore.max_score) * 100), else_=0)
+            case(
+                (models.StudentHomeworkScore.max_score > 0, 
+                 (models.StudentHomeworkScore.score_achieved / models.StudentHomeworkScore.max_score) * 100),
+                else_=None
+            )
         ).label("avg_score_percent")
     ).join(
-        models.StudentAssessmentScore, models.Assessment.id == models.StudentAssessmentScore.assessment_id
+        models.StudentHomeworkScore, 
+        models.Homework.id == models.StudentHomeworkScore.homework_id
     ).filter(
-        models.StudentAssessmentScore.student_id == student_id,
-        models.Assessment.subject_id.in_(subject_ids) # Filter assessments by subjects in the student's grade
+        models.StudentHomeworkScore.student_id == student_id,
+        models.Homework.subject_id.in_(subject_ids)
     ).group_by(
-        models.Assessment.subject_id
+        models.Homework.subject_id
     )
     avg_scores = avg_scores_query.all()
-    score_map = {score.subject_id: round(score.avg_score_percent, 2) if score.avg_score_percent is not None else None for score in avg_scores}
+    
+    score_map = {
+        score.subject_id: round(score.avg_score_percent, 2) 
+        if score.avg_score_percent is not None 
+        else None 
+        for score in avg_scores
+    }
 
     # Build response
-    performance_list: List[schemas.ParentSubjectPerformance] = []
+    performance_list = []
     for subj_id, subj_name in subject_map.items():
         performance_list.append(schemas.ParentSubjectPerformance(
             subject_id=subj_id,
             subject_name=subj_name,
             average_score=score_map.get(subj_id)
         ))
+    
     return performance_list
 
 
