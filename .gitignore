@@ -5,4 +5,5 @@ context.txt
 terraform/.terraform
 .idea
 **/.terraform/
+.env
 
