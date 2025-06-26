@@ -50,6 +50,17 @@ bucket_name = os.getenv("GCS_BUCKET_NAME")
 #             detail=f"Error uploading to GCS: {str(e)}",
 #         )
 
+PARENT_PHOTOS_DIR = "uploads/parent_photos"
+os.makedirs(PARENT_PHOTOS_DIR, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp"
+}
+
 async def upload_to_mysql(file: UploadFile, user_id: int):
     """Uploads a file to MySQL database"""
     db = SessionLocal()
@@ -90,24 +101,19 @@ async def create_parent(
     email: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user), # Authentication check
-    photo: UploadFile = File(None),  # Make photo optional
+    current_user: models.User = Depends(get_current_user),
+    photo: UploadFile = File(None),
 ):
-    """Creates a new parent (requires authentication)."""
-    # --- AUTHORIZATION REMOVED ---
-    # if current_user.user_type != "Admin":
-    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    # --- END REMOVAL ---
-
+    """Creates a new parent with local photo storage"""
     # Check if username is already taken
     db_user = db.query(models.User).filter(models.User.username == username).first()
     if db_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+        raise HTTPException(status_code=400, detail="Username already registered")
 
     # Check if email is already taken
     db_email = db.query(models.User).filter(models.User.email == email).first()
     if db_email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Email already registered")
 
     # Hash the password
     hashed_password = utils.hash_password(password)
@@ -116,50 +122,72 @@ async def create_parent(
     db_user = models.User(
         username=username,
         password_hash=hashed_password,
-        user_type="Parent", # Still create as Parent type
+        user_type="Parent",
         email=email,
+        is_active=True
     )
     db.add(db_user)
-    # Use flush to get ID for GCS and Parent profile creation before final commit
-    db.flush()
+    db.flush()  # Get user ID
 
-     # Upload photo to GCS if provided
-    photo_url = None
+    # Handle photo upload
+    photo_path = None
     if photo:
         try:
-            photo_url = await upload_to_mysql(photo, db_user.id)  # Pass user ID to GCS upload
-            db_user.photo = photo_url # Add photo URL to user object before parent creation
-        except HTTPException as e:
-            db.rollback() # Rollback user creation if photo upload fails
-            raise e # Re-raise GCS error
+            # Validate file type
+            file_ext = photo.filename.split(".")[-1].lower() if "." in photo.filename else ""
+            if file_ext not in ALLOWED_EXTENSIONS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS.keys())}"
+                )
+
+            # Create directory if not exists
+            os.makedirs(PARENT_PHOTOS_DIR, exist_ok=True)
+            
+            # Save file
+            filename = f"parent_{db_user.id}.{file_ext}"
+            file_path = os.path.join(PARENT_PHOTOS_DIR, filename)
+            
+            contents = await photo.read()
+            with open(file_path, "wb") as buffer:
+                buffer.write(contents)
+            
+            photo_path = f"/uploads/parent_photos/{filename}"
+            db_user.photo = photo_path
+        except Exception as e:
+            logger.error(f"Failed to save parent photo: {str(e)}")
+            # Continue without photo rather than failing entire creation
 
     # Create the parent profile
     db_parent = models.Parent(name=name, user_id=db_user.id)
     db.add(db_parent)
 
     try:
-        db.commit() # Commit user (with potential photo update) and parent together
-        db.refresh(db_user)
-        db.refresh(db_parent)
-        # Return based on ParentInfo schema
-        return schemas.ParentInfo(id=db_parent.id, name=db_parent.name, user_id=db_parent.user_id, photo=db_user.photo)
+        db.commit()
+        logger.info(f"Created parent {name} (ID: {db_parent.id})")
+        
+        return schemas.ParentInfo(
+            id=db_parent.id,
+            name=db_parent.name,
+            user_id=db_parent.user_id,
+            photo=db_user.photo
+        )
+
     except Exception as e:
         db.rollback()
-        # Attempt to clean up GCS photo if upload happened but DB commit failed
-        if photo_url and bucket:
-             try:
-                 # Parse blob name from URL and delete
-                 parts = photo_url.split(f"{bucket_name}/", 1)
-                 if len(parts) > 1:
-                     blob_name = parts[1].split('?')[0] # Remove query params
-                     blob = bucket.blob(blob_name)
-                     if blob.exists():
-                         blob.delete()
-                         logger.warning(f"Cleaned up orphaned GCS file on parent creation failure: {blob_name}")
-             except Exception as cleanup_e:
-                 logger.error(f"Failed GCS cleanup on parent creation failure: {cleanup_e}")
-        logger.error(f"Failed to commit parent creation: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create parent: {e}")
+        logger.error(f"Error creating parent: {str(e)}", exc_info=True)
+        
+        # Clean up uploaded photo if creation failed
+        if photo_path and os.path.exists(photo_path.replace("/uploads/", "uploads/")):
+            try:
+                os.remove(photo_path.replace("/uploads/", "uploads/"))
+            except Exception as cleanup_error:
+                logger.error(f"Failed to cleanup photo: {str(cleanup_error)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred during parent creation"
+        )
 
 
 @router.get("/{parent_id}", response_model=schemas.ParentDetails)

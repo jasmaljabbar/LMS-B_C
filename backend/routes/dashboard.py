@@ -281,27 +281,25 @@ def get_subject_performance(
 ):
     """Gets the average homework score percentage for each subject (all terms)."""
     student_id = _get_student_id_from_user(current_user, db)
-    grade_id = _get_student_grade_id(student_id, db)
+    # grade_id = _get_student_grade_id(student_id, db)
 
-    if not grade_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student grade not found"
-        )
+    # if not grade_id:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail="Student grade not found"
+    #     )
 
     # Get all subjects for the student's grade
-    subjects_in_grade = db.query(
+    subjects = db.query(
         models.Subject.id,
         models.Subject.name
-    ).filter(
-        models.Subject.grade_id == grade_id
     ).all()
 
-    if not subjects_in_grade:
+    if not subjects:
         return []  # No subjects defined for this grade
 
-    subject_ids = [s.id for s in subjects_in_grade]
-    subject_name_map = {s.id: s.name for s in subjects_in_grade}
+    subject_ids = [s.id for s in subjects]
+    subject_name_map = {s.id: s.name for s in subjects}
 
     # Query average homework scores per subject
     subject_scores = db.query(
