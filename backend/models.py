@@ -88,11 +88,13 @@ class UserFile(Base):
     __tablename__ = "user_files"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
     filename = Column(String(255))
     content_type = Column(String(100))
     data = Column(LargeBinary)  # For storing the file data
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="files")
 
 
 class User(Base):
@@ -120,6 +122,7 @@ class User(Base):
     # created_assignment_distributions = relationship("AssignmentDistribution", back_populates="assigned_by_user")
     homeworks = relationship("Homework", back_populates="parent", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user")
+    files = relationship("UserFile", back_populates="user")
 
 
 
