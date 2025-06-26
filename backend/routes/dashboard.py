@@ -45,7 +45,7 @@ def _get_student_grade_id(student_id: int, db: Session) -> Optional[int]:
         models.StudentYear.studentId == student_id,
         models.StudentYear.year == current_year # Filter by current year
     ).first()
-
+    print(student_year_info,'...........')
     if student_year_info and student_year_info.section and student_year_info.section.grade:
         return student_year_info.section.grade.id
     logger.warning(f"Could not determine current grade for student_id {student_id} in year {current_year}")
@@ -59,31 +59,30 @@ def get_weekly_performance(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Calculates the average assessment score percentage for the last 7 days."""
+    """Calculates the average homework score percentage for the last 7 days."""
     student_id = _get_student_id_from_user(current_user, db)
     today = datetime.utcnow().date()
     seven_days_ago = today - timedelta(days=6)
-    weekdays = [(today - timedelta(days=i)).strftime('%a') for i in range(6, -1, -1)] # Mon -> Sun or Sun -> Sat depending on locale
-
-    # Query scores from the last 7 days
+    
+    # Query homework scores from the last 7 days
     scores_last_7_days = db.query(
-        cast(models.StudentAssessmentScore.attempt_timestamp, Date).label("attempt_date"),
+        cast(models.StudentHomeworkScore.graded_at, Date).label("graded_date"),
         func.avg(
-            (models.StudentAssessmentScore.score_achieved / models.StudentAssessmentScore.max_score) * 100
+            (models.StudentHomeworkScore.score_achieved / models.StudentHomeworkScore.max_score) * 100
         ).label("avg_percentage")
     ).filter(
-        models.StudentAssessmentScore.student_id == student_id,
-        cast(models.StudentAssessmentScore.attempt_timestamp, Date) >= seven_days_ago,
-        cast(models.StudentAssessmentScore.attempt_timestamp, Date) <= today,
-        models.StudentAssessmentScore.max_score > 0 # Avoid division by zero
+        models.StudentHomeworkScore.student_id == student_id,
+        cast(models.StudentHomeworkScore.graded_at, Date) >= seven_days_ago,
+        cast(models.StudentHomeworkScore.graded_at, Date) <= today,
+        models.StudentHomeworkScore.max_score > 0  # Avoid division by zero
     ).group_by(
-        cast(models.StudentAssessmentScore.attempt_timestamp, Date)
+        cast(models.StudentHomeworkScore.graded_at, Date)
     ).order_by(
-        cast(models.StudentAssessmentScore.attempt_timestamp, Date)
+        cast(models.StudentHomeworkScore.graded_at, Date)
     ).all()
 
     # Create a dictionary for quick lookup
-    scores_dict = {result.attempt_date: result.avg_percentage for result in scores_last_7_days}
+    scores_dict = {result.graded_date: result.avg_percentage for result in scores_last_7_days}
 
     # Build the response, filling in missing days with None
     weekly_data: List[schemas.WeeklyPerformanceData] = []
@@ -91,7 +90,12 @@ def get_weekly_performance(
         day_date = seven_days_ago + timedelta(days=i)
         day_abbr = day_date.strftime('%a')
         score = scores_dict.get(day_date)
-        weekly_data.append(schemas.WeeklyPerformanceData(day=day_abbr, score_percentage=score))
+        weekly_data.append(
+            schemas.WeeklyPerformanceData(
+                day=day_abbr,
+                score_percentage=score
+            )
+        )
 
     return weekly_data
 
@@ -268,3 +272,65 @@ def get_subject_performance_by_term(
 #         overall_average_score=overall_avg,
 #         available_terms=terms
 #     )
+
+
+@router.get("/subject-performance", response_model=List[schemas.SubjectTermPerformanceData])
+def get_subject_performance(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Gets the average homework score percentage for each subject (all terms)."""
+    student_id = _get_student_id_from_user(current_user, db)
+    grade_id = _get_student_grade_id(student_id, db)
+
+    if not grade_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student grade not found"
+        )
+
+    # Get all subjects for the student's grade
+    subjects_in_grade = db.query(
+        models.Subject.id,
+        models.Subject.name
+    ).filter(
+        models.Subject.grade_id == grade_id
+    ).all()
+
+    if not subjects_in_grade:
+        return []  # No subjects defined for this grade
+
+    subject_ids = [s.id for s in subjects_in_grade]
+    subject_name_map = {s.id: s.name for s in subjects_in_grade}
+
+    # Query average homework scores per subject
+    subject_scores = db.query(
+        models.Homework.subject_id,
+        func.avg(
+            (models.StudentHomeworkScore.score_achieved / models.StudentHomeworkScore.max_score) * 100
+        ).label("avg_subj_score")
+    ).join(
+        models.StudentHomeworkScore,
+        models.Homework.id == models.StudentHomeworkScore.homework_id
+    ).filter(
+        models.StudentHomeworkScore.student_id == student_id,
+        models.Homework.subject_id.in_(subject_ids),
+        models.StudentHomeworkScore.max_score > 0
+    ).group_by(
+        models.Homework.subject_id
+    ).all()
+
+    scores_map = {result.subject_id: result.avg_subj_score for result in subject_scores}
+
+    # Build response including subjects with no scores
+    performance_data = []
+    for subj_id in subject_ids:
+        performance_data.append(
+            schemas.SubjectTermPerformanceData(
+                subject_id=subj_id,
+                subject_name=subject_name_map[subj_id],
+                average_score=scores_map.get(subj_id)  # None if no scores
+            )
+        )
+
+    return performance_data

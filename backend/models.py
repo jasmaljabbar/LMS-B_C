@@ -119,6 +119,7 @@ class User(Base):
     # Relationship from User to AssignmentDistribution (optional)
     # created_assignment_distributions = relationship("AssignmentDistribution", back_populates="assigned_by_user")
     homeworks = relationship("Homework", back_populates="parent", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user")
 
 
 
@@ -168,6 +169,7 @@ class Student(Base):
         back_populates="specific_students"
     )
     homeworks = relationship("Homework", back_populates="student", cascade="all, delete-orphan")
+    homework_scores = relationship("StudentHomeworkScore", back_populates="student", cascade="all, delete-orphan")
 
     # --- END ADDED RELATIONSHIP ---
 
@@ -377,13 +379,16 @@ class StudentAssessmentScore(Base):
     term = relationship("Term", back_populates="assessment_scores")
 
 
+# In your models.py (Homework model)
 class Homework(Base):
     __tablename__ = "homeworks"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255), nullable=False)  # ✅ Add length
-    description = Column(String(500), nullable=True)  # ✅ Optional: add length
+    title = Column(String(255), nullable=False)
+    description = Column(String(500), nullable=True)
     image_path = Column(String(255), nullable=False)
+    completed = Column(Boolean, default=False)  # New field to track completion status
+    completed_at = Column(DateTime, nullable=True)  # When it was marked as completed
 
     parent_id = Column(Integer, ForeignKey("users.id"))
     student_id = Column(Integer, ForeignKey("students.id"))
@@ -397,6 +402,41 @@ class Homework(Base):
     student = relationship("Student", back_populates="homeworks")
     subject = relationship("Subject")
     lesson = relationship("Lesson")
+    scores = relationship("StudentHomeworkScore", back_populates="homework", cascade="all, delete-orphan")
+
+
+class StudentHomeworkScore(Base):
+    __tablename__ = "student_homework_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete='CASCADE'), nullable=False)
+    homework_id = Column(Integer, ForeignKey("homeworks.id", ondelete='CASCADE'), nullable=False)
+    score_achieved = Column(Float, nullable=False)
+    max_score = Column(Float, nullable=False)
+    graded_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Teacher who graded it
+    graded_at = Column(DateTime(timezone=True), server_default=func.now())
+    comments = Column(String(500), nullable=True)
+
+    # Relationships
+    student = relationship("Student", back_populates="homework_scores")
+    homework = relationship("Homework", back_populates="scores")
+    grader = relationship("User")
+
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String(255))
+    message = Column(Text)
+    is_read = Column(Boolean, default=False)
+    related_entity_type = Column(String(50))  # "homework", etc.
+    related_entity_id = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="notifications")
 
 # --- Timetable Table ---
 class Timetable(Base):
