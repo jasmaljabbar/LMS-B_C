@@ -83,22 +83,27 @@ def get_homeworks_by_student(student_id: int, db: Session = Depends(get_db)):
     homeworks = db.query(Homework).filter(Homework.student_id == student_id).all()
     return homeworks
 
+
 @router.get("/by-parent/{parent_id}", response_model=List[HomeworkOut])
 def get_homeworks_by_parent(
     parent_id: int, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get homeworks by parent ID (only accessible by the parent or admin)"""
-    # Authorization check
-    if current_user.id != parent_id and current_user.user_type != "Admin":
+    """Get homeworks by parent ID (accessible by Parent or Admin)"""
+    if current_user.id != parent_id and current_user.user_type not in ["Parent", "Admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access these homeworks"
         )
-    
-    homeworks = db.query(Homework).filter(Homework.parent_id == parent_id).all()
+
+    homeworks = db.query(Homework)\
+        .options(joinedload(Homework.subject))\
+        .filter(Homework.parent_id == parent_id).all()
+
     return homeworks
+
+
 
 @router.get("/by-parent-student/", response_model=List[HomeworkOut])
 def get_homeworks_by_parent_and_student(

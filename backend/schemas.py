@@ -433,6 +433,13 @@ class HomeworkBase(BaseModel):
 class HomeworkCreate(HomeworkBase):
     pass
 
+class SubjectOut(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        orm_mode = True
+
 # In your schemas.py
 class HomeworkOut(BaseModel):
     id: int
@@ -447,6 +454,8 @@ class HomeworkOut(BaseModel):
     subject_id: int
     lesson_id: int
     created_at: datetime
+
+    subject: SubjectOut
     
     class Config:
         orm_mode = True
