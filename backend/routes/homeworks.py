@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, logger, status
 from sqlalchemy.orm import Session, joinedload  
 import shutil
 from backend.database import get_db
@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from backend.dependencies import get_current_user
 from fastapi import BackgroundTasks
 from backend.services.notifications import send_completion_notification
+from fastapi import Response
 
 
 router = APIRouter(prefix="/homeworks", tags=["Homeworks"])
@@ -332,3 +333,53 @@ def mark_homework_incomplete(
     db.refresh(homework)
     
     return homework
+
+
+
+@router.delete("/{homework_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_homework(
+    homework_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a homework assignment (accessible by Admin or Parent who created it)"""
+    # Get the homework with relationships
+    homework = db.query(Homework)\
+        .filter(Homework.id == homework_id)\
+        .first()
+    
+    if not homework:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Homework not found"
+        )
+
+    # Authorization check
+    if current_user.user_type != "Admin" and current_user.user_type != "Parent":
+        # print(current_user.id,homework.parent_id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins or the parent who created the homework can delete it"
+        )
+
+    try:
+        # Delete the associated file if it exists
+        if homework.image_path and os.path.exists(homework.image_path):
+            try:
+                os.remove(homework.image_path)
+            except OSError as e:
+                logger.error(f"Failed to delete homework file: {e}")
+
+        # Delete the homework record
+        db.delete(homework)
+        db.commit()
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting homework {homework_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete homework"
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
