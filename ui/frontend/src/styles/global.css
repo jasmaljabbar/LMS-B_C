@@ -1,0 +1,130 @@
+:root {
+  --primary-color: #4361ee;
+  --primary-dark: #2d44b3;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --background: #f8f9fa;
+  --border-color: #e0e0e0;
+  --hover-border: #4361ee;
+  --input-bg: #f8f9fa;
+}
+
+/* Layout Styles */
+.dashboard-container {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-content {
+  color: var(--text-secondary);
+  margin-top: 1rem;
+  line-height: 1.6;
+}
+
+.home-container {
+  padding: 3rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.home-content {
+  color: var(--text-secondary);
+  margin-top: 1.5rem;
+  line-height: 1.8;
+  font-size: 1.1rem;
+}
+.dashboard-container {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-content {
+  color: var(--text-secondary);
+  margin-top: 1rem;
+  line-height: 1.6;
+}
+
+/* Form Styles */
+.form-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1rem;
+}
+
+.avatar-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.avatar {
+  background-color: var(--primary-color);
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-icon {
+  font-size: 60px;
+}
+
+.title {
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.form-field {
+  width: 100%;
+  margin-bottom: 1rem;
+  background-color: var(--input-bg);
+  border-radius: 10px;
+}
+
+.form-field input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background-color: var(--input-bg);
+  transition: border-color 0.3s ease;
+}
+
+.form-field input:focus {
+  outline: none;
+  border-color: var(--hover-border);
+}
+
+.form-field input:hover {
+  border-color: var(--hover-border);
+}
+
+.submit-button {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 10px;
+  background-color: var(--primary-color);
+  color: white;
+  font-weight: 600;
+  text-transform: none;
+  transition: all 0.3s ease;
+}
+
+.submit-button:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+}

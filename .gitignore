@@ -6,4 +6,6 @@ terraform/.terraform
 .idea
 **/.terraform/
 .env
-
+ui/frontend/node_modules
+ui/frontend/.env.local
+ui/frontend/data_backup
