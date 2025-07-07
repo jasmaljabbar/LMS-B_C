@@ -1,7 +1,7 @@
 # backend/routes/pdfs.py
 import os
 import logging  # Import the logging module
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List
 from sqlalchemy.exc import IntegrityError
@@ -12,6 +12,7 @@ from backend.dependencies import get_current_user # Keep authentication
 from google.cloud import storage
 from dotenv import load_dotenv
 from pathlib import Path
+from fastapi.responses import FileResponse, JSONResponse
 
 load_dotenv()
 
@@ -170,33 +171,25 @@ async def create_pdf(
         db_pdf.size = file_size
         db.flush() # Flush size update
 
-        # Create URL entries with combined resource and URL types
-        db_https_url = models.URL(url=https_url, url_type="https")
+       # Create only gs URL entry
         db_gs_url = models.URL(url=gs_url, url_type="gs")
-        db.add(db_https_url)
         db.add(db_gs_url)
-        db.flush() # Use flush to get URL IDs before creating associations
-        db.refresh(db_https_url)
+        db.flush()
         db.refresh(db_gs_url)
 
-        # Create associations between PDF and URLs
-        pdf_https_url = models.PDFUrl(
-            pdf_id=db_pdf.id,
-            url_id=db_https_url.id
-        )
+        # Associate only the gs URL
         pdf_gs_url = models.PDFUrl(
             pdf_id=db_pdf.id,
             url_id=db_gs_url.id
         )
-        db.add(pdf_https_url)
         db.add(pdf_gs_url)
+
         db.commit() # Commit everything together
 
         db.refresh(db_pdf) # Refresh the PDF object to load relationships if needed by response model
 
-        logger.info(f"Created PDF {db_pdf.id} with HTTPS URL {db_https_url.id} and GS URL {db_gs_url.id}")
+        # logger.info(f"Created PDF {db_pdf.id} with HTTPS URL {db_https_url.id} and GS URL {db_gs_url.id}")
         return db_pdf
-
     except IntegrityError as e:
         db.rollback()
         logger.error(f"IntegrityError: {str(e)}")
@@ -225,7 +218,6 @@ async def create_pdf(
             detail=f"An unexpected error occurred: {str(e)}"
         )
 
-
 @router.get("/{pdf_id}", response_model=schemas.PDFInfo)
 def read_pdf(
         pdf_id: int,
@@ -243,6 +235,109 @@ def read_pdf(
             status_code=status.HTTP_404_NOT_FOUND, detail="PDF not found"
         )
     return db_pdf
+
+@router.get("/{pdf_id}/url", response_model=schemas.PDFUrlInfo)
+async def get_pdf_url(
+    pdf_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Get the URL for a specific PDF"""
+    pdf = db.query(models.PDF).filter(models.PDF.id == pdf_id).first()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    
+    # Get the PDFUrl association and URL
+    pdf_url = db.query(models.PDFUrl).join(models.URL).filter(
+        models.PDFUrl.pdf_id == pdf_id
+    ).first()
+    
+    if not pdf_url:
+        raise HTTPException(status_code=404, detail="PDF URL not found")
+    
+    # Return as a dictionary matching PDFUrlInfo model
+    return {
+        "pdf_id": pdf_id,
+        "url": pdf_url.url.url,
+        # Add any other fields you defined in PDFUrlInfo
+    }
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+
+
+
+
+
+
+
+
+
+from fastapi.responses import FileResponse
+
+@router.get("/{pdf_id}/file")
+async def get_pdf_file(
+    pdf_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Serve the actual PDF file"""
+    db_pdf = db.query(models.PDF).filter(models.PDF.id == pdf_id).first()
+    
+    if db_pdf is None:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    
+    # Assuming you have a way to get the file path from your database
+    file_storage = db.query(models.FileStorage).filter(
+        models.FileStorage.file_name == f"{pdf_id}.pdf"
+    ).first()
+    
+    if not file_storage:
+        raise HTTPException(status_code=404, detail="PDF file not found")
+    
+    return FileResponse(
+        file_storage.file_path,
+        media_type="application/pdf",
+        filename=f"document_{pdf_id}.pdf"
+    )
+
+from fastapi.responses import FileResponse, Response
+
+@router.api_route("/serve-pdf/{pdf_id}", methods=["GET", "HEAD"])
+async def serve_pdf(pdf_id: int):
+    try:
+        # Debug: Print the pdf_id and constructed path
+        print(f"Requested PDF ID: {pdf_id}")
+        
+        # Construct the file path - ADJUST THIS TO YOUR ACTUAL STRUCTURE
+        pdf_path = f"uploads/pdfs/{pdf_id}.pdf"
+        
+        # Debug: Print the full absolute path
+        absolute_path = os.path.abspath(pdf_path)
+        print(f"Looking for PDF at: {absolute_path}")
+        print(f"File exists: {os.path.exists(pdf_path)}")
+        
+        # Check if file exists
+        if not os.path.exists(pdf_path):
+            # List files in the directory for debugging
+            pdf_dir = "uploads/pdfs"
+            if os.path.exists(pdf_dir):
+                files = os.listdir(pdf_dir)
+                print(f"Files in {pdf_dir}: {files}")
+            else:
+                print(f"Directory {pdf_dir} does not exist")
+            
+            raise HTTPException(status_code=404, detail=f"PDF not found at {absolute_path}")
+        
+        # Return the file
+        return FileResponse(
+            path=pdf_path,
+            media_type="application/pdf",
+            filename=f"document_{pdf_id}.pdf"
+        )
+    except Exception as e:
+        print(f"Error serving PDF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/lesson/{lesson_id}", response_model=List[schemas.PDFInfo])

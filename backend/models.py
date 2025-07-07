@@ -295,6 +295,7 @@ class PDF(Base):
     __tablename__ = "pdfs"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    # Remove file_path completely
     lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete='CASCADE'))
     size = Column(Integer, nullable=True)
     lesson = relationship("Lesson", back_populates="pdfs")
