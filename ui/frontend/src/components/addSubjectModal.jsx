@@ -6,7 +6,7 @@ import usegetParentStudent from '../customHooks/usegetParentStudent';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-const AddSubjectModal = ({ open, onClose }) => {
+const AddSubjectModal = ({ open, onClose, fetchSubjects }) => {
   const [subjectName, setSubjectName] = React.useState('');
   const [selectedStudent, setSelectedStudent] = React.useState('');
   const [error, setError] = React.useState('');
@@ -35,7 +35,9 @@ const AddSubjectModal = ({ open, onClose }) => {
       });
 
       if(response.ok){
-        fetchSubjectsForAll(token);
+        // fetchSubjectsForAll(token);
+        fetchSubjects(token);
+        
       }
 
       onClose();

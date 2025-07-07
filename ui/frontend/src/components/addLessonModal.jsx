@@ -6,13 +6,13 @@ import { useState } from 'react';
 import usegetParentStudent from '../customHooks/usegetParentStudent';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-const AddLessonModal = ({ open, onClose }) => {
+const AddLessonModal = ({ open, onClose, fetchSubjectsForAll }) => {
     const [lessonName, setLessonName] = useState('');
     const [selectedStudent, setSelectedStudent] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
     const [subjectsData, setSubjectsData] = useState([]);
-    const { studentsData, fetchSubjectsForAll } = usegetParentStudent();
+    const { studentsData } = usegetParentStudent();
 
     useEffect(() => {
         let isMounted = true;
@@ -82,6 +82,7 @@ const AddLessonModal = ({ open, onClose }) => {
 
             if (response.ok) {
                 onClose();
+                fetchSubjectsForAll(token);
             }
         } catch (error) {
             console.log(error, "errrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr");

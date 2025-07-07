@@ -39,10 +39,41 @@ const ViewLessonsModal = ({ open, onClose, subject }) => {
         fetchLessons();
     }, [subject]);
 
-    const handleView = (lessonId) => {
-        navigate(`https://2d82-86-98-53-163.ngrok-free.app/`);
-        console.log('Viewing lesson:', lessonId);
-    };
+const handleView = async (lessonId) => {
+    const token = localStorage.getItem('token');
+    const studentId = localStorage.getItem('entity_id');
+    let urlId = null; // Declare urlId in outer scope
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/pdfs/lesson/${lessonId}`, {
+            headers: {
+                'accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (Array.isArray(data) && data.length > 0 && data[0].urls.length > 0) {
+            urlId = data[0].id;
+            console.log('URL ID:', urlId);
+        } else {
+            console.warn('Unexpected response structure or no URLs found');
+            return;
+        }
+    } catch (error) {
+        console.error('Fetch error:', error);
+        return;
+    }
+
+    // Now use urlId safely
+    window.location.href = `https://51b2-117-211-236-210.ngrok-free.app?token=${token}&pdf_id=${urlId}&student_id=${studentId}&student_id=${subject.id}&lesson_id=${lessonId}`;
+    console.log('Viewing lesson:', lessonId);
+};
 
 
     return (
