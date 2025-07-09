@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "ai-powered-lms"
+  },
+  "targets": {
+    "ai-powered-lms": {
+      "hosting": {
+        "live-web-api": [
+          "ai-powered-lms-live-web-api"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

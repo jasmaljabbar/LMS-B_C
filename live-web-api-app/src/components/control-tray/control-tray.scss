@@ -1,0 +1,448 @@
+.action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--Neutral-20);
+  color: var(--Neutral-60);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  text-transform: lowercase;
+  cursor: pointer;
+  animation: opacity-pulse 3s ease-in infinite;
+  transition: all 0.2s ease-in-out;
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 0, 0, 0);
+  user-select: none;
+  cursor: pointer;
+
+  &:focus {
+    border: 2px solid var(--Neutral-20);
+    outline: 2px solid var(--Neutral-80);
+  }
+
+  &.outlined {
+    background: var(--Neutral-2);
+    border: 1px solid var(--Neutral-20);
+  }
+
+  .no-action {
+    pointer-events: none;
+  }
+
+  &:hover {
+    background: rgba(0, 0, 0, 0);
+    border: 1px solid var(--Neutral-20);
+  }
+
+  &.connected {
+    background: var(--Blue-800);
+    color: var(--Blue-500);
+
+    &:hover {
+      border: 1px solid var(--Blue-500);
+    }
+  }
+}
+
+@property --volume {
+  syntax: "length";
+  inherit: false;
+  initial-value: 0px;
+}
+
+.disabled .mic-button,
+.mic-button.disabled {
+  &:before {
+    background: rgba(0, 0, 0, 0);
+  }
+}
+
+.mic-button {
+  position: relative;
+  background-color: var(--accent-red);
+  z-index: 1;
+  color: black;
+  transition: all 0.2s ease-in;
+
+  &:focus {
+    border: 2px solid var(--Neutral-20);
+    outline: 2px solid var(--Red-500);
+  }
+
+  &:hover {
+    background-color: var(--Red-400);
+  }
+
+  &:before {
+    position: absolute;
+    z-index: -1;
+    top: calc(var(--volume) * -1);
+    left: calc(var(--volume) * -1);
+    display: block;
+    content: "";
+    opacity: 0.35;
+    background-color: var(--Red-500);
+    width: calc(100% + var(--volume) * 2);
+    height: calc(100% + var(--volume) * 2);
+    border-radius: 24px;
+    transition: all 0.02s ease-in-out;
+  }
+}
+
+.connect-toggle {
+  &:focus {
+    border: 2px solid var(--Neutral-20);
+    outline: 2px solid var(--Neutral-80);
+  }
+
+  &:not(.connected) {
+    background-color: var(--Blue-500);
+    color: var(--Neutral-5);
+  }
+}
+
+.control-tray {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 0);
+  display: inline-flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 18px;
+
+  .disabled .action-button,
+  .action-button.disabled {
+    background: rgba(0, 0, 0, 0);
+    border: 1px solid var(--Neutral-30, #404547);
+    color: var(--Neutral-30);
+  }
+
+  .connection-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+
+    .connection-button-container {
+      border-radius: 27px;
+      border: 1px solid var(--Neutral-30);
+      background: var(--Neutral-5);
+      padding: 10px;
+    }
+
+    .text-indicator {
+      font-size: 11px;
+      color: var(--Blue-500);
+      user-select: none;
+    }
+
+    &:not(.connected) {
+      .text-indicator {
+        opacity: 0;
+      }
+    }
+  }
+}
+
+.camera-preview-container {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--background-color);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  .captured-photo-container {
+    position: relative;
+    margin-bottom: 12px;
+    width: 100%;
+    max-width: 320px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    .captured-photo {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .close-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border: none;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.7);
+        transform: scale(1.1);
+      }
+    }
+  }
+
+  .camera-video {
+    width: 100%;
+    max-width: 320px;
+    height: 240px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #000;
+  }
+
+  .camera-button {
+    margin-top: 12px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent-red);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+
+  @media (min-width: 768px) {
+    bottom: 150px;
+    max-width: 400px;
+    padding: 16px;
+
+    .camera-video {
+      height: 320px;
+    }
+
+    .camera-button {
+      width: 56px;
+      height: 56px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    bottom: 200px;
+    max-width: 500px;
+
+    .camera-video {
+      height: 400px;
+    }
+  }
+}
+
+.actions-nav {
+  background: var(--Neutral-5);
+  border: 1px solid var(--Neutral-30);
+  border-radius: 27px;
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  overflow: clip;
+  padding: 10px;
+
+  transition: all 0.6s ease-in;
+
+  &>* {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+@keyframes opacity-pulse {
+  0% {
+    opacity: 0.9;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.9;
+  }
+}
+
+.mobile-camera-container {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  padding: 1rem;
+  background: var(--background-color);
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+
+  .camera-preview {
+    position: relative;
+    width: 100%;
+    height: 240px;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+
+    .camera-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .camera-button {
+    position: absolute;
+    bottom: -48px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent-red);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:active {
+      transform: translateX(-50%) scale(0.95);
+    }
+  }
+}
+
+.mic-listening-modal {
+  z-index: 1001;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.mic-listening-modal .mic-icon {
+  color: #007bff;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.camera-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+
+  .camera-modal-content {
+    background: var(--background-color);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 600px;
+    height: 80vh;
+    max-height: 600px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+
+    .camera-modal-header {
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--divider-color);
+
+      h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: var(--text-color);
+      }
+
+      .close-button {
+        background: none;
+        border: none;
+        color: var(--text-color);
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: var(--hover-color);
+        }
+      }
+    }
+
+    .camera-preview {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+
+      .camera-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .camera-controls {
+      padding: 1rem;
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+
+      .camera-button {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--accent-red);
+        color: white;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:active {
+          transform: scale(0.95);
+        }
+      }
+    }
+  }
+}
