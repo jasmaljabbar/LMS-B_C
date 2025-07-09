@@ -9,3 +9,4 @@ terraform/.terraform
 ui/frontend/node_modules
 ui/frontend/.env.local
 ui/frontend/data_backup
+live-web-api-app/node_modules
