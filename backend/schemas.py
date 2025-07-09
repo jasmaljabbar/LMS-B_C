@@ -254,6 +254,10 @@ class PDFInfo(BaseModel):
     size: Optional[int] = None
     urls: list[PDFUrlInfo] = []
 
+class PDFUrlInfo(BaseModel):
+    pdf_id: int
+    url: str
+
 class ImageCreate(BaseModel):
     name: str
     pdf_id: int

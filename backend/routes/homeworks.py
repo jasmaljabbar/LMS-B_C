@@ -13,6 +13,7 @@ from backend.dependencies import get_current_user
 from fastapi import BackgroundTasks
 from backend.services.notifications import send_completion_notification
 from fastapi import Response
+import img2pdf
 
 
 router = APIRouter(prefix="/homeworks", tags=["Homeworks"])
@@ -32,33 +33,49 @@ async def create_homework(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new homework assignment with file upload"""
-    # Generate unique filename
-    file_extension = os.path.splitext(file.filename)[-1]
-    unique_filename = f"{uuid4().hex}{file_extension}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    """Create a new homework assignment with file upload (converted to PDF)"""
+    try:
+        # Create a temporary file to save the uploaded image
+        temp_image_path = f"{uuid4().hex}{os.path.splitext(file.filename)[-1]}"
+        with open(temp_image_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-    # Save file
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        # Convert the image to PDF using img2pdf
+        pdf_bytes = img2pdf.convert(temp_image_path)
 
-    # Create homework record
-    homework = Homework(
-        title=title,
-        description=description,
-        student_id=student_id,
-        grade_id=grade_id,
-        subject_id=subject_id,
-        lesson_id=lesson_id,
-        image_path=file_path,
-        parent_id=current_user.id  # Set parent_id from current user
-    )
-    
-    db.add(homework)
-    db.commit()
-    db.refresh(homework)
+        # Generate unique filename for the PDF
+        unique_filename = f"{uuid4().hex}.pdf"
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
 
-    return homework
+        # Save the PDF to the UPLOAD_DIR
+        with open(file_path, "wb") as pdf_file:
+            pdf_file.write(pdf_bytes)
+
+        # Create homework record
+        homework = Homework(
+            title=title,
+            description=description,
+            student_id=student_id,
+            grade_id=grade_id,
+            subject_id=subject_id,
+            lesson_id=lesson_id,
+            image_path=file_path,  # Save the path to the PDF
+            parent_id=current_user.id
+        )
+
+        db.add(homework)
+        db.commit()
+        db.refresh(homework)
+
+        return homework
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        # Clean up the temporary image file
+        if os.path.exists(temp_image_path):
+            os.remove(temp_image_path)
 
 @router.get("/", response_model=List[HomeworkOut])
 def get_all_homeworks(db: Session = Depends(get_db)):
@@ -333,6 +350,48 @@ def mark_homework_incomplete(
     db.refresh(homework)
     
     return homework
+
+
+@router.api_route("/pdfs/serve-homework/{homework_id}", methods=["GET", "HEAD"])
+async def serve_homework_pdf(
+    homework_id: int,
+    db: Session = Depends(get_db)
+):
+    try:
+        print(f"Requested homework PDF ID: {homework_id}")
+        
+        # 1. First get the homework record from database
+        homework = db.query(Homework).filter(Homework.id == homework_id).first()
+        if not homework:
+            raise HTTPException(status_code=404, detail="Homework not found")
+        
+        # 2. Use the image_path from the homework record
+        pdf_path = homework.image_path
+        absolute_path = os.path.abspath(pdf_path)
+        
+        print(f"Looking for homework PDF at: {absolute_path}")
+        
+        if not os.path.exists(pdf_path):
+            # List files in directory for debugging
+            pdf_dir = os.path.dirname(pdf_path)
+            if os.path.exists(pdf_dir):
+                files = os.listdir(pdf_dir)
+                print(f"Files in directory: {files}")
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Homework PDF not found at {absolute_path}"
+            )
+        
+        return FileResponse(
+            path=pdf_path,
+            media_type="application/pdf",
+            filename=f"homework_{homework_id}.pdf"  # You can customize the download filename
+        )
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        print(f"Error serving homework PDF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
