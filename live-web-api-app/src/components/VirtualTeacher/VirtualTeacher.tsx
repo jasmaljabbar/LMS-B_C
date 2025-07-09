@@ -134,13 +134,19 @@ type Params = {
 
 const VirtualTeacher: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('accessToken')
+    const token = params.get('token')
     const subjctId = params.get('subjectId')
-    const studentId = params.get('studentId')
+    const studentId = params.get('student_id')
     const termId = params.get('termId')
+    const lesson_id = params.get('lesson_id')
+    const pdf_id = params.get('pdf_id')
+    const is_homework = params.get('is_homework') === 'true';
+    const [error, setError] = useState<string | null>(null);;
+    const [loading, setLoading] = useState(true);
     // const token = query.get('token');
     // --- State Variables ---
     // Header States
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [student, setStudent] = useState<Student>({
         name: 'Loading...',
         year: '',
@@ -148,10 +154,13 @@ const VirtualTeacher: React.FC = () => {
 
     });
 
+    console.log(studentId, "studentId");
+
+
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                const response = await fetch(`https://lms-backend-931876132356.us-central1.run.app/students/${studentId}`, {
+                const response = await fetch(`http:////127.0.0.1:8000/students/${studentId}`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -181,7 +190,50 @@ const VirtualTeacher: React.FC = () => {
         fetchInitialData();
 
 
-    }, [])
+    }, [studentId])
+
+
+    useEffect(() => {
+        const fetchPdfUrl = async () => {
+            try {
+                setLoading(true);
+                let directPdfUrl: string;
+                if (is_homework) {
+                    directPdfUrl = `http://127.0.1:8000/homeworks/pdfs/serve-homework/${pdf_id}`;
+                } else {
+
+                    directPdfUrl = `http://127.0.0.1:8000/pdfs/serve-pdf/${pdf_id}`;
+                }
+
+                // Use GET request with range header to check if PDF exists
+                // This will only download the first byte to verify existence
+                const response = await fetch(directPdfUrl, {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Range': 'bytes=0-0' // Only get first byte
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('PDF not found');
+                }
+
+                setPdfUrl(directPdfUrl);
+                console.log("Using PDF URL:", directPdfUrl);
+
+            } catch (err) {
+                // setError(err.message);
+                console.error('Error fetching PDF URL:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (pdf_id) {
+            fetchPdfUrl();
+        }
+    }, [pdf_id, token]);
 
 
 
@@ -209,7 +261,7 @@ const VirtualTeacher: React.FC = () => {
     // --- NEW State for PDF Page Navigation ---
     const [currentPageNumber, setCurrentPageNumber] = useState<number>(1);
     const [numPages, setNumPages] = useState<number>(0);
-    
+
     // Video Data
     const [fetchedVideos, setFetchedVideos] = useState<FormattedVideo[]>([]);
     const [videosLoading, setVideosLoading] = useState<boolean>(false);
@@ -257,7 +309,7 @@ const VirtualTeacher: React.FC = () => {
 
 
     // --- PDF Handling ---
-    const loadPdfDocument = useCallback(async (url: string): Promise<pdfjsLib.PDFDocumentProxy | null> => {
+    const loadPdfDocument = useCallback(async (pdfUrl: string): Promise<pdfjsLib.PDFDocumentProxy | null> => {
         // No need to check for window, pdfjsLib should be available if workerSrc is set
         if (!pdfjsLib) return null;
         setIsThumbnailLoading(true);
@@ -265,13 +317,13 @@ const VirtualTeacher: React.FC = () => {
         stopPdfRenderTask(); // Cancel any ongoing render
 
         try {
-            const loadingTask = pdfjsLib.getDocument(url);
+            const loadingTask = pdfjsLib.getDocument(pdfUrl);
             const pdf = await loadingTask.promise;
             if (!pdf) throw new Error("PDF load failed");
             setPdfDoc(pdf);
             setNumPages(pdf.numPages);
             setCurrentPageNumber(1); // Reset to first page whenever a new document is loaded
-            loadedThumbnailUrlRef.current = url; // Track the URL of this successfully loaded doc
+            loadedThumbnailUrlRef.current = pdfUrl; // Track the URL of this successfully loaded doc
 
             // setIsThumbnailLoading(false); // Set loading false in renderPage or on error
             return pdf;
@@ -371,7 +423,7 @@ const VirtualTeacher: React.FC = () => {
                 };
 
                 // 1. Fetch Subject Details
-                const subjectApiUrl = `https://lms-backend-931876132356.us-central1.run.app/subjects/${subjctId}`;
+                const subjectApiUrl = `http://127.0.0.1:8000/subjects/${subjctId}`;
                 const subjectResponse = await fetch(subjectApiUrl, { headers });
 
                 if (!subjectResponse.ok) throw new Error(`Failed to fetch subject: ${subjectResponse.status} ${subjectResponse.statusText}`);
@@ -408,7 +460,7 @@ const VirtualTeacher: React.FC = () => {
             setHeaderError("Cannot fetch data outside of browser environment.");
         }
 
-    }, []);
+    }, [subjctId]);
 
     // Effect to fetch Lessons data
     useEffect(() => {
@@ -416,7 +468,7 @@ const VirtualTeacher: React.FC = () => {
             setLessonsLoading(true);
             setLessonsError(null);
             setSelectedLessonId(null);
-            setDynamicLessons([]);    
+            setDynamicLessons([]);
 
             try {
 
@@ -429,7 +481,7 @@ const VirtualTeacher: React.FC = () => {
                     'Accept': 'application/json',
                 };
 
-                const lessonsApiUrl = `https://lms-backend-931876132356.us-central1.run.app/lessons/by-term-subject/?term_id=${termId}&subject_id=${subjctId}`;
+                const lessonsApiUrl = `http://127.0.0.1:8000/lessons/${lesson_id}`;
                 const response = await fetch(lessonsApiUrl, { headers });
 
                 if (!response.ok) {
@@ -467,7 +519,7 @@ const VirtualTeacher: React.FC = () => {
             setLessonsError("Cannot fetch lessons outside of browser environment.");
         }
 
-    }, []);
+    }, [lesson_id]);
 
     // Effect to fetch PDFs and Videos based on loaded lessons
     useEffect(() => {
@@ -503,7 +555,7 @@ const VirtualTeacher: React.FC = () => {
 
                 // --- Fetch PDFs ---
                 const pdfPromises = lessonIds.map(lessonId =>
-                    fetch(`https://lms-backend-931876132356.us-central1.run.app/pdfs/lesson/${lessonId}`, { headers })
+                    fetch(`http://127.0.0.1:8000/pdfs/lesson/${lesson_id}`, { headers })
                         .then(res => res.ok ? res.json() as Promise<PdfData[]> : Promise.reject(`PDF fetch failed for lesson ${lessonId}: ${res.status}`))
                         .catch(err => { console.error(`Error fetching PDF for lesson ${lessonId}:`, err); return []; })
                 );
@@ -576,8 +628,8 @@ const VirtualTeacher: React.FC = () => {
         setPdfIndex(0);
     }, [selectedLessonId]);
 
-     // --- MODIFIED Effect to Load/Render PDF Thumbnail (Handles both file and page changes) ---
-     useEffect(() => {
+    // --- MODIFIED Effect to Load/Render PDF Thumbnail (Handles both file and page changes) ---
+    useEffect(() => {
         let isMounted = true;
 
         const loadAndRenderCurrentPdfPage = async () => {
@@ -660,7 +712,7 @@ const VirtualTeacher: React.FC = () => {
         renderPage,       // Callback
         stopPdfRenderTask,// Callback
         pdfDoc            // Re-added: important to re-render if pdfDoc changes due to external reasons (though less likely here)
-                          // or if we want to ensure renderPage is called if pdfDoc is already set but currentPageNumber hasn't changed (initial load scenario)
+        // or if we want to ensure renderPage is called if pdfDoc is already set but currentPageNumber hasn't changed (initial load scenario)
     ]);
 
     const handleNextPdf = () => {
@@ -885,79 +937,60 @@ const VirtualTeacher: React.FC = () => {
                 // Max height calculation might not be needed if parent controls height
             }}>
 
+                {/* Update the PDF rendering part of your VirtualTeacher.tsx */}
                 {/* PDF Thumbnail Card */}
                 <Card sx={{ borderRadius: '12px', boxShadow: 3, flexShrink: 0 }}>
                     <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
-                        <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                        {/* <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', fontSize: { xs: '1rem', sm: '1.1rem' } }}>
                             {lessonsLoading ? 'Loading Lesson...' : selectedLessonName ? selectedLessonName : 'Select a Lesson'}
-                        </Typography>
-                        <Box sx={{ position: 'relative', width: '100%', overflow: 'hidden', borderRadius: '8px', backgroundColor: '#e0e0e0', border: '1px solid #ccc', minHeight: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {(pdfsLoading || isThumbnailLoading) && <CircularProgress size={40} sx={{ position: 'absolute', color: '#8f94fb' }} />}
-                            {!pdfsLoading && pdfsError && !isThumbnailLoading && (<Alert severity="error" sx={{ width: '100%' }}>{pdfsError}</Alert>)}
+                        </Typography> */}
 
-                            {/* Canvas - ensure it's displayed correctly */}
-                            <canvas ref={canvasRef} style={{
-                                width: '100%',
-                                height: 'auto',
-                                borderRadius: '8px',
-                                // Conditionally display based on loading/error states AND pdfDoc presence
-                                display: (pdfsLoading || pdfsError || isThumbnailLoading || !pdfDoc) ? 'none' : 'block'
-                            }} />
-
-
-                            {/* Fullscreen Button */}
-                            {!pdfsLoading && !pdfsError && !isThumbnailLoading && pdfDoc && filteredPdfs.length > 0 && (
-                                <IconButton size="small" sx={{ position: 'absolute', top: 8, right: 8, color: 'white', backgroundColor: 'rgba(0, 0, 0, 0.5)', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }} onClick={() => setFullScreenPdf(true)} aria-label="View PDF Fullscreen"><Fullscreen fontSize="small" /></IconButton>
+                        {/* PDF Viewer Container */}
+                        <Box sx={{
+                            position: 'relative',
+                            width: '100%',
+                            height: '80vh', // Use viewport height for better screen fit
+                            minHeight: '600px', // Minimum height
+                            maxHeight: '90vh', // Maximum height
+                            borderRadius: '8px',
+                            backgroundColor: '#e0e0e0',
+                            border: '1px solid #ccc',
+                            overflow: 'hidden'
+                        }}>
+                            {loading ? (
+                                <Box sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    height: '100%'
+                                }}>
+                                    <CircularProgress size={40} sx={{ color: '#8f94fb' }} />
+                                </Box>
+                            ) : error ? (
+                                <Alert severity="error" sx={{ width: '100%' }}>
+                                    Failed to load PDF: {error}
+                                </Alert>
+                            ) : pdfUrl ? (
+                                <Worker workerUrl={`//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`}>
+                                    <Viewer
+                                        fileUrl={pdfUrl}
+                                        plugins={[defaultLayoutPluginInstance]}
+                                        defaultScale={SpecialZoomLevel.PageWidth} // Fit to width, allowing vertical scroll
+                                        httpHeaders={{
+                                            'Authorization': `Bearer ${token}`
+                                        }}
+                                    />
+                                </Worker>
+                            ) : (
+                                <Typography variant="body2" sx={{
+                                    color: 'text.secondary',
+                                    textAlign: 'center',
+                                    p: 2
+                                }}>
+                                    No PDF available for this lesson.
+                                </Typography>
                             )}
-
-                            {/* Empty/Placeholder States */}
-                            {!pdfsLoading && !pdfsError && !isThumbnailLoading && !pdfDoc && !selectedLessonId && (<Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', p: 2 }}>Select a lesson to view PDFs.</Typography>)}
-                            {!pdfsLoading && !pdfsError && !isThumbnailLoading && !pdfDoc && selectedLessonId && filteredPdfs.length === 0 && (<Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', p: 2 }}>No PDFs for this lesson.</Typography>)}
-                            {!pdfsLoading && !pdfsError && !isThumbnailLoading && !pdfDoc && selectedLessonId && filteredPdfs.length > 0 && (<Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center', p: 2 }}>PDF preview unavailable.</Typography>)}
-
                         </Box>
-                                                {/* --- PDF PAGE Navigation Controls --- */}
-                                                {pdfDoc && numPages > 0 && !isThumbnailLoading && (
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5, mb: 0.5 }}>
-                                <Button
-                                    size="small"
-                                    startIcon={<KeyboardArrowLeft />}
-                                    onClick={handlePreviousPage}
-                                    disabled={currentPageNumber <= 1}
-                                    variant="outlined" // Using outlined for distinction
-                                >
-                                    Prev Page
-                                </Button>
-                                <Typography variant="caption" sx={{ textAlign: 'center', color: 'text.secondary' }}>
-                                    Page {currentPageNumber} / {numPages}
-                                </Typography>
-                                <Button
-                                    size="small"
-                                    endIcon={<KeyboardArrowRight />}
-                                    onClick={handleNextPage}
-                                    disabled={currentPageNumber >= numPages}
-                                    variant="outlined"
-                                >
-                                    Next Page
-                                </Button>
-                            </Box>
-                        )}
-                        {/* --- End PDF PAGE Navigation --- */}
-
-                        {/* PDF Navigation */}
-                        {filteredPdfs.length > 1 && !pdfsLoading && !pdfsError && (
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                                <Button size="small" startIcon={<KeyboardArrowLeft />} variant='text' sx={{ color: '#9c27b0' }} onClick={handlePreviousPdf} disabled={isThumbnailLoading || pdfsLoading}>
-                                    Prev Doc {/* Changed text */}
-                                </Button>
-                                <Typography variant="caption" sx={{ textAlign: 'center' }}>
-                                    Doc {filteredPdfs.length > 0 ? pdfIndex + 1 : 0} / {filteredPdfs.length}
-                                </Typography>
-                                <Button size="small" endIcon={<KeyboardArrowRight />} variant='text' sx={{ color: '#9c27b0' }} onClick={handleNextPdf} disabled={isThumbnailLoading || pdfsLoading}>
-                                    Next Doc {/* Changed text */}
-                                </Button>
-                            </Box>
-                        )}
                     </CardContent>
                 </Card>
 
