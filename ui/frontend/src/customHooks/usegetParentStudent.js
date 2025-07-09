@@ -61,7 +61,6 @@ const usegetParentStudent = () => {
 
                     const subjectData = await res.json();
                     newSubjectsMap[student.student_id] = subjectData;
-
                     // Fetch lessons for each subject
                     await Promise.all(
                         subjectData.map(async (subject) => {
@@ -78,6 +77,49 @@ const usegetParentStudent = () => {
         setSubjectsMap(newSubjectsMap);
         setLessonsMap(newLessonsMap);
     };
+
+const fetchSubjects = async (token) => {
+    const newSubjectsMap = {};
+
+    try {
+        await Promise.all(
+            studentsData?.map(async (student) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/subjects/student/${student.student_id}`, {
+                        headers: {
+                            'accept': 'application/json',
+                            'Authorization': `Bearer ${token}`,
+                        },
+                    });
+
+                    if (!res.ok) throw new Error(`Failed for student ${student.student_id}`);
+
+                    const subjectData = await res.json();
+
+                    // Transform subjectData to match the structure used in fetchSubjectsForAll
+                    const transformedSubjects = subjectData.map((subject) => ({
+                        subject_id: subject.id,
+                        subject_name: subject.name,
+                        average_score: null,  // Assuming average_score isn't present here
+                    }));
+
+                    newSubjectsMap[student.student_id] = transformedSubjects;
+
+                    console.log(`Subjects for student ${student.student_id}`, transformedSubjects);
+
+                } catch (error) {
+                    console.error(`Error fetching subjects for student ${student.student_id}:`, error);
+                }
+            })
+        );
+
+        setSubjectsMap(newSubjectsMap);
+    } catch (error) {
+        console.error("General error in fetchSubjects:", error);
+    }
+};
+
+
 
     // const fetchLessons = async (token) => {
     //     const newLessonsMap = {};
@@ -106,7 +148,7 @@ const usegetParentStudent = () => {
         subjectsMap,
         lessonsMap,
         fetchSubjectsForAll,
-
+        fetchSubjects
     }
 }
 

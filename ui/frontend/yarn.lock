@@ -152,7 +152,7 @@
   dependencies:
     "@babel/helper-plugin-utils" "^7.27.1"
 
-"@babel/runtime@^7.12.5", "@babel/runtime@^7.18.3", "@babel/runtime@^7.23.9", "@babel/runtime@^7.27.1", "@babel/runtime@^7.5.5", "@babel/runtime@^7.8.7":
+"@babel/runtime@^7.12.5", "@babel/runtime@^7.18.3", "@babel/runtime@^7.23.9", "@babel/runtime@^7.27.6", "@babel/runtime@^7.5.5", "@babel/runtime@^7.8.7":
   version "7.27.6"
   resolved "https://registry.npmjs.org/@babel/runtime/-/runtime-7.27.6.tgz"
   integrity sha512-vbavdySgbTTrmFE+EsiqUTzlOr5bzlnJtUv9PynGCAKvfQqjIXbvFdumPM/GxMDfyuGMJaJAU6TO4zc1Jf1i8Q==
@@ -304,6 +304,50 @@
   resolved "https://registry.npmjs.org/@emotion/weak-memoize/-/weak-memoize-0.4.0.tgz"
   integrity sha512-snKqtPW01tN0ui7yu9rGv69aJXr/a/Ywvl11sUjNtEcRc+ng/mQriFL0wLXMef74iHa/EkftbDzU9F8iFbH+zg==
 
+"@esbuild/aix-ppc64@0.21.5":
+
+"@esbuild/android-arm@0.21.5":
+
+"@esbuild/android-arm64@0.21.5":
+
+"@esbuild/android-x64@0.21.5":
+
+"@esbuild/darwin-arm64@0.21.5":
+
+"@esbuild/darwin-x64@0.21.5":
+
+"@esbuild/freebsd-arm64@0.21.5":
+
+"@esbuild/freebsd-x64@0.21.5":
+
+"@esbuild/linux-arm@0.21.5":
+
+"@esbuild/linux-arm64@0.21.5":
+
+"@esbuild/linux-ia32@0.21.5":
+
+"@esbuild/linux-loong64@0.21.5":
+
+"@esbuild/linux-mips64el@0.21.5":
+
+"@esbuild/linux-ppc64@0.21.5":
+
+"@esbuild/linux-riscv64@0.21.5":
+
+"@esbuild/linux-s390x@0.21.5":
+
+"@esbuild/linux-x64@0.21.5":
+
+"@esbuild/netbsd-x64@0.21.5":
+
+"@esbuild/openbsd-x64@0.21.5":
+
+"@esbuild/sunos-x64@0.21.5":
+
+"@esbuild/win32-arm64@0.21.5":
+
+"@esbuild/win32-ia32@0.21.5":
+
 "@esbuild/win32-x64@0.21.5":
   version "0.21.5"
   resolved "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz"
@@ -415,11 +459,9 @@
   integrity sha512-OcZj+cs6EfUD39IoPBOgN61zf1XFVY+imsGoBDwXeSq2UHJZE3N59zzBOVjclck91Ne3e9gudONOeILvHCIhUA==
 
 "@mui/icons-material@^7.1.2":
-  version "7.1.2"
-  resolved "https://registry.npmjs.org/@mui/icons-material/-/icons-material-7.1.2.tgz"
-  integrity sha512-slqJByDub7Y1UcokrM17BoMBMvn8n7daXFXVoTv0MEH5k3sHjmsH8ql/Mt3s9vQ20cORDr83UZ448TEGcbrXtw==
+  version "7.2.0"
   dependencies:
-    "@babel/runtime" "^7.27.1"
+    "@babel/runtime" "^7.27.6"
 
 "@mui/material@^5.17.1":
   version "5.17.1"
@@ -850,10 +892,11 @@ camelize@^1.0.0:
   resolved "https://registry.npmjs.org/camelize/-/camelize-1.0.1.tgz"
   integrity sha512-dU+Tx2fsypxTgtLoE36npi3UqcjSSMNYfkqgmoEhtZrraP5VWq0K7FkWVTYa8eMPtnU/G2txVsfdCJTn9uzpuQ==
 
-caniuse-lite@^1.0.30001702, caniuse-lite@^1.0.30001718:
-  version "1.0.30001723"
-  resolved "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001723.tgz"
-  integrity sha512-1R/elMjtehrFejxwmexeXAtae5UO9iSyFn6G/I806CYC/BLyyBk1EPhrKBkWhy6wM6Xnm47dSJQec+tLJ39WHw==
+caniuse-lite@^1.0.30001702:
+  version "1.0.30001726"
+
+caniuse-lite@^1.0.30001718:
+  version "1.0.30001726"
 
 chalk@^4.0.0:
   version "4.1.2"
@@ -1100,9 +1143,7 @@ error-ex@^1.3.1:
     is-arrayish "^0.2.1"
 
 es-toolkit@^1.39.3:
-  version "1.39.5"
-  resolved "https://registry.npmjs.org/es-toolkit/-/es-toolkit-1.39.5.tgz"
-  integrity sha512-z9V0qU4lx1TBXDNFWfAASWk6RNU6c6+TJBKE+FLIg8u0XJ6Yw58Hi0yX8ftEouj6p1QARRlXLFfHbIli93BdQQ==
+  version "1.39.6"
 
 esbuild@^0.21.3:
   version "0.21.5"
@@ -1339,6 +1380,10 @@ fs.realpath@^1.0.0:
   version "1.0.0"
   resolved "https://registry.npmjs.org/fs.realpath/-/fs.realpath-1.0.0.tgz"
   integrity sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==
+
+fsevents@~2.3.2:
+
+fsevents@~2.3.3:
 
 function-bind@^1.1.2:
   version "1.1.2"

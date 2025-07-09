@@ -16,6 +16,7 @@ import AddLessonModal from '../components/addLessonModal';
 import LessonModal from '../components/lessonModal';
 import HomeWorkSection from '../components/homeWorkSection';
 import LessonPDFs from '../components/LessonPDFs';
+import Notifications from '../components/Notifications';
 // import AddLessonModal from '../components/addLessonModal';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -28,7 +29,7 @@ const ParentDashboard = () => {
   const [openLessonModal, setOpenLessonModal] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [homeworkData, setHomeworkData] = useState([]);
-  const { studentsData, subjectsMap, lessonsMap, fetchSubjectsForAll, fetchLessons } = usegetParentStudent();
+  const { studentsData, subjectsMap, lessonsMap, fetchSubjectsForAll, fetchLessons,fetchSubjects } = usegetParentStudent();
 
   const handleOpenAddSubject = () => setOpenAddSubject(true);
   const handleCloseAddSubject = () => setOpenAddSubject(false);
@@ -157,17 +158,17 @@ const ParentDashboard = () => {
             >
               Add Homework
             </Button>
-
+            <Notifications />
           </Box>
         </Box>
 
-        <AddSubjectModal open={openAddSubject} onClose={handleCloseAddSubject} />
+        <AddSubjectModal open={openAddSubject} onClose={handleCloseAddSubject} fetchSubjects={fetchSubjects} />
         <AddHomeworkModal
           open={openAddHomework}
           onClose={handleCloseAddHomework}
           getHomework={handleGetHomework}
         />
-        <AddLessonModal open={openAddLesson} onClose={handleCloseAddLesson} />
+        <AddLessonModal open={openAddLesson} onClose={handleCloseAddLesson} fetchSubjectsForAll={fetchSubjectsForAll} />
         <LessonModal
           open={openLessonModal}
           onClose={() => setOpenLessonModal(false)}
@@ -267,9 +268,10 @@ const ParentDashboard = () => {
                     </Typography>
                     <Grid container spacing={2}>
                       {subjectsAccordingtoStuednts && subjectsAccordingtoStuednts.length > 0 ?
-                        subjectsAccordingtoStuednts.map((subject) => {
-                          // const lessonsAccordingtoStuednts = lessonsMap[subject.subject_id] || [];
-                          const { gradient } = getSubjectStyling(subject.subject_name);
+                        [...subjectsAccordingtoStuednts]
+                          .sort((a, b) => a.subject_name.localeCompare(b.subject_name))
+                          .map((subject) => {
+                            const { gradient } = getSubjectStyling(subject.subject_name);
                           return (
                             <Grid item xs={12} sm={6} key={subject.subject_id}>
                               <Card sx={{
