@@ -1,4 +1,4 @@
-import React from "react";
+import React,{ useEffect } from "react";
 import { Box, Grid, Card, CardContent, Typography, Avatar, Button } from '@mui/material';
 import { Assignment, Book } from '@mui/icons-material';
 import useGetStudentbyID from "../../customHooks/useGetStudentbyID";
@@ -14,7 +14,11 @@ const StudentDashboard = () => {
   const [openHomeworkModal, setOpenHomeworkModal] = React.useState(false);
   // const theme = useTheme();
   // const location = useLocation();
-
+  
+  useEffect(() => {
+    document.title = "Student Dashboard";
+  }, []);
+  
   // const subjects = dummySubjects;
   const { student, loading } = useGetStudentbyID();
   const { subjects, isLoading, error } = usegetSubjectbyhStudent();
