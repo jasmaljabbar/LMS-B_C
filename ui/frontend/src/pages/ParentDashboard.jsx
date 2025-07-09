@@ -33,6 +33,9 @@ const ParentDashboard = () => {
 
   const handleOpenAddSubject = () => setOpenAddSubject(true);
   const handleCloseAddSubject = () => setOpenAddSubject(false);
+  useEffect(() => {
+      document.title = "Parent Dashboard";
+    }, []);
   const handleOpen = (lesson) => {
     setOpenLessonModal(true);
     setSelectedLesson(lesson);
