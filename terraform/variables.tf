@@ -4,7 +4,7 @@
 variable "project_id" {
   description = "The GCP project ID to deploy resources in."
   type        = string
-  default     = "ai-powered-lms" # Default based on your gcloud config
+  default     = "st-Zora-ai-B-C" # Default based on your gcloud config
 }
 
 variable "region" {
@@ -19,19 +19,19 @@ variable "region" {
 variable "instance_name" {
   description = "The name of the Cloud SQL instance."
   type        = string
-  default     = "cloudnative-lms-instance"
+  default     = "cloudnative-lms-B-C-instance"
 }
 
 variable "database_name" {
   description = "The name of the database to create."
   type        = string
-  default     = "cloudnative_lms"
+  default     = "cloudnative_lms_B-C"
 }
 
 variable "db_user_name" {
   description = "The username for the database user."
   type        = string
-  default     = "lms_user"
+  default     = "lms_b-c_user"
 }
 
 variable "db_engine" {
@@ -127,7 +127,7 @@ variable "app_secret_key_secret_id" {
 variable "cloudrun_service_name" {
   description = "The name for the Cloud Run service."
   type        = string
-  default     = "lms-backend-service"
+  default     = "lms-b-c-backend-service"
 }
 
 variable "cloudrun_service_account_id" {
@@ -151,7 +151,7 @@ variable "cloudrun_min_instances" {
 variable "cloudrun_max_instances" {
   description = "Maximum number of container instances for the service."
   type        = number
-  default     = 2 # Adjust based on expected load
+  default     = 4 # Adjust based on expected load
 }
 
 variable "cloudrun_container_concurrency" {
@@ -163,7 +163,7 @@ variable "cloudrun_container_concurrency" {
 variable "cloudrun_cpu_limit" {
   description = "CPU limit for the container instance (e.g., '1', '2', '4'). Affects cost."
   type        = string
-  default     = "1" # 1 vCPU
+  default     = "2" # 1 vCPU
 }
 
 variable "cloudrun_memory_limit" {
